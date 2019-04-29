@@ -19,15 +19,14 @@ import {
     Component,
     EventEmitter,
     Input,
-    OnChanges, OnInit, Output,
+    OnChanges, Output,
     SimpleChanges,
 } from '@angular/core';
 import {Device, LabelToggle, UiElement} from '../../models';
-import {IconService, LocMeta, LogService, MetaUi, SvgUtilService, ZoomUtils} from 'gui2-fw-lib';
-import {NodeVisual, SelectedEvent} from '../nodevisual';
+import {IconService, LocMeta, LogService, MetaUi, ZoomUtils} from 'gui2-fw-lib';
+import {NodeVisual} from '../nodevisual';
 import {animate, state, style, transition, trigger} from '@angular/animations';
 import {LocationType} from '../../../backgroundsvg/backgroundsvg.component';
-import {TopologyService} from '../../../../topology.service';
 
 /**
  * The Device node in the force graph
@@ -65,28 +64,18 @@ import {TopologyService} from '../../../../topology.service';
         ])
     ]
 })
-export class DeviceNodeSvgComponent extends NodeVisual implements OnInit, OnChanges {
+export class DeviceNodeSvgComponent extends NodeVisual implements OnChanges {
     @Input() device: Device;
     @Input() scale: number = 1.0;
     @Input() labelToggle: LabelToggle.Enum = LabelToggle.Enum.NONE;
-    @Input() colorMuted: boolean = false;
-    @Input() colorTheme: string = 'light';
-    @Output() selectedEvent = new EventEmitter<SelectedEvent>();
+    @Output() selectedEvent = new EventEmitter<UiElement>();
     textWidth: number = 36;
-    panelColor: string = '#9ebedf';
-
     constructor(
         protected log: LogService,
         private is: IconService,
-        protected sus: SvgUtilService,
-        protected ts: TopologyService,
         private ref: ChangeDetectorRef
     ) {
         super();
-    }
-
-    ngOnInit(): void {
-        this.panelColor = this.panelColour();
     }
 
     /**
@@ -102,13 +91,6 @@ export class DeviceNodeSvgComponent extends NodeVisual implements OnInit, OnChan
                 this.device.x = 0;
                 this.device.y = 0;
             }
-            // The master might have changed - recalculate color
-            this.panelColor = this.panelColour();
-        }
-
-        if (changes['colorMuted']) {
-            this.colorMuted = changes['colorMuted'].currentValue;
-            this.panelColor = this.panelColour();
         }
         this.ref.markForCheck();
     }
@@ -150,12 +132,24 @@ export class DeviceNodeSvgComponent extends NodeVisual implements OnInit, OnChan
         }
     }
 
-    /**
-     * Get a colour for the banner of the nth panel
-     * @param idx The index of the panel (0-6)
-     */
-    panelColour(): string {
-        const idx = this.ts.instancesIndex.get(this.device.master);
-        return this.sus.cat7().getColor(idx, this.colorMuted, this.colorTheme);
+    resetNodeLocation(): void {
+        this.log.debug('Resetting device', this.device.id, this.device.type);
+        let origLoc: MetaUi;
+
+        if (!this.device.location || this.device.location.locType === LocationType.NONE) {
+            // No location - nothing to do
+            return;
+        } else if (this.device.location.locType === LocationType.GEO) {
+            origLoc = ZoomUtils.convertGeoToCanvas(<LocMeta>{
+                lng: this.device.location.longOrX,
+                lat: this.device.location.latOrY
+            });
+        } else if (this.device.location.locType === LocationType.GRID) {
+            origLoc = ZoomUtils.convertXYtoGeo(
+                this.device.location.longOrX, this.device.location.latOrY);
+        }
+        this.device.metaUi = origLoc;
+        this.device['fx'] = origLoc.x;
+        this.device['fy'] = origLoc.y;
     }
 }

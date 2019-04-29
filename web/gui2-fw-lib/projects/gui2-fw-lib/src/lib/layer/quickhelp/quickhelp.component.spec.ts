@@ -26,19 +26,7 @@ import {KeysService} from '../../util/keys.service';
 class MockFnService {}
 
 class MockKeysService {
-    keyHandler: {
-        viewKeys: any[],
-        globalKeys: any[]
-    };
 
-    mockViewKeys: Object[];
-    constructor() {
-        this.mockViewKeys = [];
-        this.keyHandler = {
-            viewKeys: this.mockViewKeys,
-            globalKeys: this.mockViewKeys
-        };
-    }
 }
 
 /**

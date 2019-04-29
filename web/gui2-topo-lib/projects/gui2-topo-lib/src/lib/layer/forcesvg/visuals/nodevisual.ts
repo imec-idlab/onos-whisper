@@ -16,30 +16,20 @@
 import {EventEmitter} from '@angular/core';
 import {UiElement} from '../models';
 
-export interface SelectedEvent {
-    uiElement: UiElement;
-    deselecting: boolean;
-    isShift: boolean;
-    isCtrl: boolean;
-    isAlt: boolean;
-}
-
 /**
  * A base class for the Host and Device components
  */
 export abstract class NodeVisual {
     selected: boolean;
-    selectedEvent = new EventEmitter<SelectedEvent>();
+    selectedEvent = new EventEmitter<UiElement>();
 
-    toggleSelected(uiElement: UiElement, event: MouseEvent) {
+    toggleSelected(uiElement: UiElement) {
         this.selected = !this.selected;
-        this.selectedEvent.emit(<SelectedEvent>{
-            uiElement: uiElement,
-            deselecting: !this.selected,
-            isShift: event.shiftKey,
-            isCtrl: event.ctrlKey,
-            isAlt: event.altKey
-        });
+        if (this.selected) {
+            this.selectedEvent.emit(uiElement);
+        } else {
+            this.selectedEvent.emit();
+        }
     }
 
     deselect() {

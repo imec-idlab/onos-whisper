@@ -47,7 +47,6 @@ export class Link implements UiElement, d3.SimulationLinkDatum<Node> {
     portA: string; // The number of the port at one end
     portB: string; // The number of the port at the other end
     type: LinkType;
-    rollup: RegionRollup[]; // Links in sub regions represented by this one link
 
     // Must - defining enforced implementation properties
     source: Node;
@@ -58,29 +57,6 @@ export class Link implements UiElement, d3.SimulationLinkDatum<Node> {
             return ep.substr(0, ep.lastIndexOf('/'));
         }
         return ep;
-    }
-
-    /**
-     * The WSS event showHighlights is sent up with a slightly different
-     * name format on the link id using the "-" separator rather than the "~"
-     * @param linkId The id of the link in either format
-     */
-    public static linkIdFromShowHighlights(linkId: string) {
-        if (linkId.includes('-')) {
-            const parts: string[] = linkId.split('-');
-            const part0 = Link.removeHostPortNum(parts[0]);
-            const part1 = Link.removeHostPortNum(parts[1]);
-            return part0 + '~' + part1;
-        }
-        return linkId;
-    }
-
-    private static removeHostPortNum(hostStr: string) {
-        if (hostStr.includes('/None/')) {
-            const subparts = hostStr.split('/');
-            return subparts[0] + '/' + subparts[1];
-        }
-        return hostStr;
     }
 
     constructor(source, target) {
@@ -97,6 +73,7 @@ export class Link implements UiElement, d3.SimulationLinkDatum<Node> {
  * model of the topo2CurrentRegion region link from Region
  */
 export class RegionLink extends Link {
+    rollup: RegionRollup[]; // Links in sub regions represented by this one link
 
     constructor(type: LinkType, nodeA: Node, nodeB: Node) {
         super(nodeA, nodeB);
@@ -111,5 +88,4 @@ export interface LinkHighlight {
     id: string;
     css: string;
     label: string;
-    fadems: number;
 }

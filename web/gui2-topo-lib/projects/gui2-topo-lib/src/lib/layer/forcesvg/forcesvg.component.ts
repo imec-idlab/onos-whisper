@@ -28,10 +28,15 @@ import {
     SimpleChanges,
     ViewChildren
 } from '@angular/core';
-import {LocMeta, LogService, MetaUi, SvgUtilService, WebSocketService, ZoomUtils} from 'gui2-fw-lib';
 import {
-    Device,
-    DeviceProps,
+    LocMeta,
+    LogService,
+    MetaUi,
+    WebSocketService,
+    ZoomUtils
+} from 'gui2-fw-lib';
+import {
+    Device, DeviceProps,
     ForceDirectedGraph,
     Host,
     HostLabelToggle,
@@ -43,7 +48,6 @@ import {
     ModelEventMemo,
     ModelEventType,
     Node,
-    Options,
     Region,
     RegionLink,
     SubRegion,
@@ -51,9 +55,9 @@ import {
 } from './models';
 import {LocationType} from '../backgroundsvg/backgroundsvg.component';
 import {DeviceNodeSvgComponent} from './visuals/devicenodesvg/devicenodesvg.component';
-import {HostNodeSvgComponent} from './visuals/hostnodesvg/hostnodesvg.component';
-import {LinkSvgComponent} from './visuals/linksvg/linksvg.component';
-import {SelectedEvent} from './visuals/nodevisual';
+import { HostNodeSvgComponent} from './visuals/hostnodesvg/hostnodesvg.component';
+import { LinkSvgComponent} from './visuals/linksvg/linksvg.component';
+import { Options } from './models/force-directed-graph';
 
 interface UpdateMeta {
     id: string;
@@ -94,9 +98,8 @@ export class ForceSvgComponent implements OnInit, OnChanges {
     @Input() scale: number = 1;
     @Input() regionData: Region = <Region>{devices: [ [], [], [] ], hosts: [ [], [], [] ], links: []};
     @Output() linkSelected = new EventEmitter<RegionLink>();
-    @Output() selectedNodeEvent = new EventEmitter<UiElement[]>();
+    @Output() selectedNodeEvent = new EventEmitter<UiElement>();
     public graph: ForceDirectedGraph;
-    private selectedNodes: UiElement[] = [];
 
     // References to the children of this component - these are created in the
     // template view with the *ngFor and we get them by a query here
@@ -119,17 +122,14 @@ export class ForceSvgComponent implements OnInit, OnChanges {
      * name
      * @param endPtStr The end point name
      */
-    static extractNodeName(endPtStr: string): string {
+    private static extractNodeName(endPtStr: string): string {
         const slash: number = endPtStr.indexOf('/');
         if (slash === -1) {
             return endPtStr;
         } else {
             const afterSlash = endPtStr.substr(slash + 1);
-            const beforeSlash = endPtStr.substr(0, slash);
             if (afterSlash === 'None') {
                 return endPtStr;
-            } else if (beforeSlash.split(':').length > 2) {
-                return endPtStr; // Host name with mac address
             } else {
                 return endPtStr.substr(0, slash);
             }
@@ -259,21 +259,6 @@ export class ForceSvgComponent implements OnInit, OnChanges {
     }
 
     /**
-     * If instance has a value then mute colors of devices not connected to it
-     * Otherwise if instance does not have a value unmute all
-     * @param instanceName name of the selected instance
-     */
-    changeInstSelection(instanceName: string) {
-        this.log.debug('Mastership changed', instanceName);
-        this.devices.filter((d) => d.device.master !== instanceName)
-            .forEach((d) => {
-                const isMuted = Boolean(instanceName);
-                d.ngOnChanges({'colorMuted': new SimpleChange(!isMuted, isMuted, true)});
-            }
-        );
-    }
-
-    /**
      * If a node has a fixed location then assign it to fx and fy so
      * that it doesn't get affected by forces
      * @param graphNode The node whose location should be processed
@@ -323,58 +308,28 @@ export class ForceSvgComponent implements OnInit, OnChanges {
     }
 
     /**
-     * Iterate through all hosts and devices and links to deselect the previously selected
+     * Iterate through all hosts and devices to deselect the previously selected
      * node. The emit an event to the parent that lets it know the selection has
      * changed.
-     *
-     * This function collates all of the nodes that have been selected and passes
-     * a collection of nodes up to the topology component
-     *
      * @param selectedNode the newly selected node
      */
-    updateSelected(selectedNode: SelectedEvent): void {
-        this.log.debug('Node or link ',
-            selectedNode.uiElement ? selectedNode.uiElement.id : '--',
-            selectedNode.deselecting ? 'deselected' : 'selected',
-            selectedNode.isShift ? 'Multiple' : '');
+    updateSelected(selectedNode: UiElement): void {
+        this.log.debug('Node or link selected', selectedNode ? selectedNode.id : 'none');
+        this.devices
+            .filter((d) =>
+                selectedNode === undefined || d.device.id !== selectedNode.id)
+            .forEach((d) => d.deselect());
+        this.hosts
+            .filter((h) =>
+                selectedNode === undefined || h.host.id !== selectedNode.id)
+            .forEach((h) => h.deselect());
 
-        if (selectedNode.isShift && selectedNode.deselecting) {
-            const idx = this.selectedNodes.findIndex((n) =>
-                n.id === selectedNode.uiElement.id
-            );
-            this.selectedNodes.splice(idx, 1);
-            this.log.debug('Removed node', idx);
-
-        } else if (selectedNode.isShift) {
-            this.selectedNodes.push(selectedNode.uiElement);
-
-        } else if (selectedNode.deselecting) {
-            this.devices
-                .forEach((d) => d.deselect());
-            this.hosts
-                .forEach((h) => h.deselect());
-            this.links
-                .forEach((l) => l.deselect());
-            this.selectedNodes = [];
-
-        } else {
-            const selNodeId = selectedNode.uiElement.id;
-            // Otherwise if shift was not pressed deselect previous
-            this.devices
-                .filter((d) => d.device.id !== selNodeId)
-                .forEach((d) => d.deselect());
-            this.hosts
-                .filter((h) => h.host.id !== selNodeId)
-                .forEach((h) => h.deselect());
-
-            this.links
-                .filter((l) => l.link.id !== selNodeId)
-                .forEach((l) => l.deselect());
-
-            this.selectedNodes = [selectedNode.uiElement];
-        }
+        this.links
+            .filter((l) =>
+                selectedNode === undefined || l.link.id !== selectedNode.id)
+            .forEach((l) => l.deselect());
         // Push the changes back up to parent (Topology Component)
-        this.selectedNodeEvent.emit(this.selectedNodes);
+        this.selectedNodeEvent.emit(selectedNode);
     }
 
     /**
@@ -415,11 +370,6 @@ export class ForceSvgComponent implements OnInit, OnChanges {
                         if (changes.locationChanged) {
                             this.fixPosition(oldDevice);
                         }
-                        const svgDevice: DeviceNodeSvgComponent =
-                            this.devices.find((svgdevice) => svgdevice.device.id === subject);
-                        svgDevice.ngOnChanges({'device':
-                                new SimpleChange(<Device>{}, oldDevice, true)
-                        });
                     }
                 } else {
                     this.log.warn('Device ', memo, ' - not yet implemented', data);
@@ -464,7 +414,7 @@ export class ForceSvgComponent implements OnInit, OnChanges {
                             .findIndex((h) => h.id === subject);
                     this.regionData.hosts[this.visibleLayerIdx()].splice(removeIdx, 1);
                     this.removeRelatedLinks(subject);
-                    this.log.debug('Host ', subject, 'removed');
+                    this.log.warn('Host ', subject, 'removed');
                 } else {
                     this.log.warn('Host removed - unexpected memo', memo);
                 }
@@ -489,18 +439,11 @@ export class ForceSvgComponent implements OnInit, OnChanges {
                     const changes = ForceSvgComponent.updateObject(oldLink, <RegionLink>data);
                     this.log.debug('Link ', subject, '. Updated', changes, 'items');
                 } else {
-                    this.log.warn('Link event ignored', subject, data);
-                }
-                break;
-            case ModelEventType.LINK_REMOVED:
-                if (memo === ModelEventMemo.REMOVED) {
-                    const removeIdx = this.regionData.links.findIndex((l) => l.id === subject);
-                    this.regionData.links.splice(removeIdx, 1);
-                    this.log.debug('Link ', subject, 'removed');
+                    this.log.warn('Link added or updated - unexpected memo', memo);
                 }
                 break;
             default:
-                this.log.error('Unexpected model event', type, 'for', subject, 'Data', data);
+                this.log.error('Unexpected model event', type, 'for', subject);
         }
         this.graph.links = this.regionData.links;
         this.graph.reinitSimulation();
@@ -526,7 +469,7 @@ export class ForceSvgComponent implements OnInit, OnChanges {
      * @param hosts - an array of host highlights
      * @param links - an array of link highlights
      */
-    handleHighlights(devices: Device[], hosts: Host[], links: LinkHighlight[], fadeMs: number = 0): void {
+    handleHighlights(devices: Device[], hosts: Host[], links: LinkHighlight[]): void {
 
         if (devices.length > 0) {
             this.log.debug(devices.length, 'Devices highlighted');
@@ -557,15 +500,12 @@ export class ForceSvgComponent implements OnInit, OnChanges {
         if (links.length > 0) {
             this.log.debug(links.length, 'Links highlighted');
             links.forEach((lh) => {
-                const linkComponent: LinkSvgComponent =
-                    this.links.find((l) => l.link.id === Link.linkIdFromShowHighlights(lh.id) );
-                if (linkComponent) { // A link might not be present if hosts viewing is switched off
-                    if (fadeMs > 0) {
-                        lh.fadems = fadeMs;
-                    }
+                const linkComponent: LinkSvgComponent = this.links.find((l) => l.link.id === lh.id );
+                if (linkComponent) { // A link might not be present is hosts viewing is switched off
                     linkComponent.ngOnChanges(
                         {'linkHighlight': new SimpleChange(<LinkHighlight>{}, lh, true)}
                     );
+                    // this.log.debug('Highlighting link', linkComponent.link.id, lh.css, lh.label);
                 }
             });
         }
@@ -587,74 +527,10 @@ export class ForceSvgComponent implements OnInit, OnChanges {
         this.log.debug(klass, id, 'has been moved to', newLocation);
     }
 
-    /**
-     * If any nodes with fixed positions had been dragged out of place
-     * then put back where they belong
-     * If there are some devices selected reset only these
-     */
-    resetNodeLocations(): number {
-        let numbernodes = 0;
-        if (this.selectedNodes.length > 0) {
-            this.devices
-                .filter((d) => this.selectedNodes.some((s) => s.id === d.device.id))
-                .forEach((dev) => {
-                    Node.resetNodeLocation(<Node>dev.device);
-                    numbernodes++;
-                });
-            this.hosts
-                .filter((h) => this.selectedNodes.some((s) => s.id === h.host.id))
-                .forEach((h) => {
-                    Host.resetNodeLocation(<Host>h.host);
-                    numbernodes++;
-                });
-        } else {
-            this.devices.forEach((dev) => {
-                Node.resetNodeLocation(<Node>dev.device);
-                numbernodes++;
-            });
-            this.hosts.forEach((h) => {
-                Host.resetNodeLocation(<Host>h.host);
-                numbernodes++;
-            });
-        }
-        this.graph.reinitSimulation();
-        return numbernodes;
+    resetNodeLocations() {
+        this.devices.forEach((d) => {
+            d.resetNodeLocation();
+        });
     }
-
-    /**
-     * Toggle floating nodes between unpinned and frozen
-     * There may be frozen and unpinned in the selection
-     *
-     * If there are nodes selected toggle only these
-     */
-    unpinOrFreezeNodes(freeze: boolean): number {
-        let numbernodes = 0;
-        if (this.selectedNodes.length > 0) {
-            this.devices
-                .filter((d) => this.selectedNodes.some((s) => s.id === d.device.id))
-                .forEach((d) => {
-                    Node.unpinOrFreezeNode(<Node>d.device, freeze);
-                    numbernodes++;
-                });
-            this.hosts
-                .filter((h) => this.selectedNodes.some((s) => s.id === h.host.id))
-                .forEach((h) => {
-                    Node.unpinOrFreezeNode(<Node>h.host, freeze);
-                    numbernodes++;
-                });
-        } else {
-            this.devices.forEach((d) => {
-                Node.unpinOrFreezeNode(<Node>d.device, freeze);
-                numbernodes++;
-            });
-            this.hosts.forEach((h) => {
-                Node.unpinOrFreezeNode(<Node>h.host, freeze);
-                numbernodes++;
-            });
-        }
-        this.graph.reinitSimulation();
-        return numbernodes;
-    }
-
 }
 

@@ -65,11 +65,10 @@ import {
     RESETZOOM_BTN,
     SUMMARY_TOGGLE
 } from '../panel/toolbar/toolbar.component';
-import {TrafficService, TrafficType} from '../traffic.service';
+import {TrafficService} from '../traffic.service';
 import {ZoomableDirective} from '../layer/zoomable.directive';
 import {MapObject} from '../layer/maputils';
 import {LayoutService, LayoutType} from '../layout.service';
-import {SelectedEvent} from '../layer/forcesvg/visuals/nodevisual';
 
 const TOPO2_PREFS = 'topo2_prefs';
 const TOPO_MAPID_PREFS = 'topo_mapid';
@@ -85,13 +84,6 @@ const PREF_OFFDEV = 'offdev';
 const PREF_PORTHL = 'porthl';
 const PREF_SUMMARY = 'summary';
 const PREF_TOOLBAR = 'toolbar';
-const PREF_PINNED = 'pinned';
-const PREF_TRAFFIC = 'traffic';
-
-const BACKGROUND_ELEMENTS = [
-    'svg topo2',
-    'path bgmap'
-];
 
 /**
  * Model of the topo2_prefs object - this is a subset of the overall Prefs returned
@@ -111,8 +103,6 @@ export interface Topo2Prefs {
     summary: number;
     toolbar: number;
     grid: number;
-    pinned: number;
-    traffic: number;
 }
 
 /**
@@ -144,7 +134,7 @@ export interface Topo2Prefs {
   templateUrl: './topology.component.html',
   styleUrls: ['./topology.component.css']
 })
-export class TopologyComponent implements OnInit, OnDestroy {
+export class TopologyComponent implements AfterContentInit, OnInit, OnDestroy {
     @Input() bannerHeight: number = 48;
     // These are references to the components inserted in the template
     @ViewChild(InstanceComponent) instance: InstanceComponent;
@@ -168,9 +158,7 @@ export class TopologyComponent implements OnInit, OnDestroy {
         spr: 0,
         summary: 1,
         toolbar: 0,
-        grid: 0,
-        pinned: 0,
-        traffic: 2 // default to PORTSTATSPKTSEC, as it will iterate over to 0 on init
+        grid: 0
     };
 
     mapIdState: MapObject = <MapObject>{
@@ -264,14 +252,6 @@ export class TopologyComponent implements OnInit, OnDestroy {
         }
     }
 
-    private static trafficTypeFlashMessage(index: number): string {
-        switch (index) {
-            case 0: return 'tr_fl_fstats_bytes';
-            case 1: return 'tr_fl_pstats_bits';
-            case 2: return 'tr_fl_pstats_pkts';
-        }
-    }
-
     /**
      * Pass the list of Key Commands to the KeyService, and initialize the Topology
      * Service - which communicates with through the WebSocket to the ONOS server
@@ -285,20 +265,19 @@ export class TopologyComponent implements OnInit, OnDestroy {
         // Service just to compartmentalize things a bit
         this.ts.init(this.instance, this.background, this.force);
 
-        // For the 2.1 release to not listen to updates of prefs as they are
-        // only the echo of what we have sent down and the event mechanism
-        // does not discern between users. Can get confused if multiple windows open
-        // this.ps.addListener((data) => this.prefsUpdateHandler(data));
-
+        this.ps.addListener((data) => this.prefsUpdateHandler(data));
         this.prefsState = this.ps.getPrefs(TOPO2_PREFS, this.prefsState);
         this.mapIdState = this.ps.getPrefs(TOPO_MAPID_PREFS, this.mapIdState);
-        this.trs.init(this.force);
 
+        this.log.debug('Topology component initialized');
+    }
+
+    ngAfterContentInit(): void {
         // Scale the window initially - then after resize
         const zoomMapExtents = ZoomUtils.zoomToWindowSize(
             this.bannerHeight, this.window.innerWidth, this.window.innerHeight);
         this.zoomDirective.changeZoomLevel(zoomMapExtents, true);
-        this.log.debug('TopologyComponent initialized',
+        this.log.debug('Topology zoom initialized',
             this.bannerHeight, this.window.innerWidth, this.window.innerHeight,
             zoomMapExtents);
     }
@@ -324,7 +303,6 @@ export class TopologyComponent implements OnInit, OnDestroy {
     ngOnDestroy() {
         this.ts.destroy();
         this.ps.removeListener((data) => this.prefsUpdateHandler(data));
-        this.trs.destroy();
         this.log.debug('Topology component destroyed');
     }
 
@@ -387,7 +365,7 @@ export class TopologyComponent implements OnInit, OnDestroy {
                 this.cancelTraffic();
                 break;
             case ALL_TRAFFIC:
-                this.cycleTrafficTypeDisplay();
+                this.monitorAllTraffic();
                 break;
             case QUICKHELP_BTN:
                 this.ks.quickHelpShown = true;
@@ -408,37 +386,34 @@ export class TopologyComponent implements OnInit, OnDestroy {
      *
      * This action map is passed to the KeyService through the bindCommands()
      * when this component is being initialized
-     *
-     * TODO - Replace this doggy doo doo (copied over from GUI-1)
-     * with something more structured
      */
     actionMap() {
         return {
-            A: [() => {this.cycleTrafficTypeDisplay(); }, this.lionFn('tr_btn_monitor_all')],
-            B: [(token) => {this.toggleBackground(token); }, this.lionFn('tbtt_tog_map')],
-            D: [(token) => {this.toggleDetails(token); }, this.lionFn('tbtt_tog_use_detail')],
-            E: [() => {this.equalizeMasters(); }, this.lionFn('tbtt_eq_master')],
-            H: [() => {this.toggleHosts(); }, this.lionFn('tbtt_tog_host')],
-            I: [(token) => {this.toggleInstancePanel(token); }, this.lionFn('tbtt_tog_instances')],
-            G: [() => {this.mapSelShown = !this.mapSelShown; }, this.lionFn('tbtt_sel_map')],
-            L: [() => {this.cycleDeviceLabels(); }, this.lionFn('tbtt_cyc_dev_labs')],
-            M: [() => {this.toggleOfflineDevices(); }, this.lionFn('tbtt_tog_offline')],
-            O: [() => {this.toggleSummary(); }, this.lionFn('tbtt_tog_summary')],
-            P: [(token) => {this.togglePorts(token); }, this.lionFn('tbtt_tog_porthi')],
-            Q: [() => {this.cycleGridDisplay(); }, this.lionFn('tbtt_cyc_grid_display')],
-            R: [() => {this.resetZoom(); }, this.lionFn('tbtt_reset_zoom')],
-            U: [() => {this.unpinOrFreezeNodes(); }, this.lionFn('tbtt_unpin_node')],
-            X: [() => {this.resetNodeLocation(); }, this.lionFn('tbtt_reset_loc')],
-            dot: [() => {this.toggleToolbar(); }, this.lionFn('tbtt_tog_toolbar')],
-            0: [() => {this.cancelTraffic(); }, this.lionFn('tr_btn_cancel_monitoring')],
-            'shift-L': [() => {this.cycleHostLabels(); }, this.lionFn('tbtt_cyc_host_labs')],
+            A: [() => {this.monitorAllTraffic(); }, 'Monitor all traffic'],
+            B: [(token) => {this.toggleBackground(token); }, 'Toggle background'],
+            D: [(token) => {this.toggleDetails(token); }, 'Toggle details panel'],
+            E: [() => {this.equalizeMasters(); }, 'Equalize mastership roles'],
+            H: [() => {this.toggleHosts(); }, 'Toggle host visibility'],
+            I: [(token) => {this.toggleInstancePanel(token); }, 'Toggle ONOS Instance Panel'],
+            G: [() => {this.mapSelShown = !this.mapSelShown; }, 'Show map selection dialog'],
+            L: [() => {this.cycleDeviceLabels(); }, 'Cycle device labels'],
+            M: [() => {this.toggleOfflineDevices(); }, 'Toggle offline visibility'],
+            O: [() => {this.toggleSummary(); }, 'Toggle the Summary Panel'],
+            P: [(token) => {this.togglePorts(token); }, 'Toggle Port Highlighting'],
+            Q: [() => {this.cycleGridDisplay(); }, 'Cycle grid display'],
+            R: [() => {this.resetZoom(); }, 'Reset pan / zoom'],
+            U: [() => {this.unpinNode(); }, 'Unpin node (mouse over)'],
+            X: [() => {this.resetNodeLocation(); }, 'Reset Node Location'],
+            dot: [() => {this.toggleToolbar(); }, 'Toggle Toolbar'],
+            0: [() => {this.cancelTraffic(); }, 'Cancel traffic monitoring'],
+            'shift-L': [() => {this.cycleHostLabels(); }, 'Cycle host labels'],
 
             // -- instance color palette debug
             9: () => {
                 this.sus.cat7().testCard(d3.select('svg#topo2'));
             },
 
-            esc: [() => {this.handleEscape(); }, this.lionFn('qh_hint_esc')],
+            esc: [() => {this.handleEscape(); }, 'Cancel commands'],
 
             // TODO update after adding in Background Service
             // topology overlay selections
@@ -462,6 +437,8 @@ export class TopologyComponent implements OnInit, OnDestroy {
     bindCommands(additional?: any) {
 
         const am = this.actionMap();
+        const add = this.fs.isO(additional);
+
         this.ks.keyBindings(am);
 
         this.ks.gestureNotes([
@@ -542,15 +519,6 @@ export class TopologyComponent implements OnInit, OnDestroy {
         this.log.debug('Cycling grid display', old, next);
     }
 
-    protected cycleTrafficTypeDisplay() {
-        const old: TrafficType.Enum = this.prefsState.traffic; // by number
-        const next = TrafficType.next(old);
-        this.flashMsg = this.lionFn(TopologyComponent.trafficTypeFlashMessage(next));
-        this.updatePrefsState(PREF_TRAFFIC, next);
-        this.trs.requestTraffic(next);
-        this.log.debug('Cycling traffic display', old, next);
-    }
-
     /**
      * When the button is clicked on the toolbar or the B key is pressed
      * 1) Find the inverse of the current state (held as 1 or 0)
@@ -608,7 +576,7 @@ export class TopologyComponent implements OnInit, OnDestroy {
     protected toggleHosts() {
         const current: boolean = !Boolean(this.prefsState.hosts);
         this.flashMsg = this.lionFn('hosts') + ' ' +
-                        this.lionFn(current ? 'visible' : 'hidden');
+                        this.lionFn(this.force.showHosts ? 'visible' : 'hidden');
         this.updatePrefsState(PREF_HOSTS, current ? 1 : 0);
         this.log.debug('toggling hosts: ', this.prefsState.hosts ? 'Show' : 'Hide');
     }
@@ -629,35 +597,21 @@ export class TopologyComponent implements OnInit, OnDestroy {
     }
 
     protected equalizeMasters() {
-        this.wss.sendEvent('equalizeMasters', {});
+        this.wss.sendEvent('equalizeMasters', null);
         this.flashMsg = this.lionFn('fl_eq_masters');
         this.log.debug('equalizing masters');
     }
 
-    /**
-     * If any nodes with fixed positions had been dragged out of place
-     * then put back where they belong
-     * If there are some devices selected reset only these
-     */
     protected resetNodeLocation() {
-        const numNodes = this.force.resetNodeLocations();
-        this.flashMsg = this.lionFn('fl_reset_node_locations') +
-            '(' + String(numNodes) + ')';
-        this.log.debug('resetting ', numNodes, 'node(s) location');
+        // TODO: Implement reset locations
+        this.force.resetNodeLocations();
+        this.flashMsg = this.lionFn('fl_reset_node_locations');
+        this.log.debug('resetting node location');
     }
 
-    /**
-     * Toggle floating nodes between pinned and frozen
-     * If there are floating nodes selected toggle only these
-     */
-    protected unpinOrFreezeNodes() {
-        const pinned: boolean = !Boolean(this.prefsState.pinned);
-        const numNodes = this.force.unpinOrFreezeNodes(pinned);
-        this.flashMsg = this.lionFn(pinned ?
-            'fl_pinned_floating_nodes' : 'fl_unpinned_floating_nodes') +
-            '(' + String(numNodes) + ')';
-        this.updatePrefsState(PREF_PINNED, pinned ? 1 : 0);
-        this.log.debug('Toggling pinning for floating ', numNodes, 'nodes', pinned);
+    protected unpinNode() {
+        // TODO: Implement this
+        this.log.debug('unpinning node');
     }
 
     /**
@@ -692,12 +646,20 @@ export class TopologyComponent implements OnInit, OnDestroy {
     /**
      * An event handler that updates the details panel as items are
      * selected in the forcesvg layer
-     *
-     * @param nodesOrLink the item(s) to display details of
+     * @param nodeOrLink the item to display details of
      */
-    nodeSelected(nodesOrLink: UiElement[]) {
-        this.details.ngOnChanges({'selectedNodes':
-            new SimpleChange(undefined, nodesOrLink, true)});
+    nodeSelected(nodeOrLink: UiElement) {
+        this.details.ngOnChanges({'selectedNode':
+            new SimpleChange(undefined, nodeOrLink, true)});
+    }
+
+    /**
+     * Enable traffic monitoring
+     */
+    monitorAllTraffic() {
+        // TODO: Implement support for toggling between bits, packets and octets
+        this.flashMsg = this.lionFn('tr_fl_pstats_bits');
+        this.trs.init(this.force);
     }
 
     /**
@@ -705,7 +667,7 @@ export class TopologyComponent implements OnInit, OnDestroy {
      */
     cancelTraffic() {
         this.flashMsg = this.lionFn('fl_monitoring_canceled');
-        this.trs.cancelTraffic();
+        this.trs.destroy();
     }
 
     changeMap(map: MapObject) {
@@ -719,18 +681,6 @@ export class TopologyComponent implements OnInit, OnDestroy {
         // this.zoomDirective.updateZoomState(zoomPrefs.tx, zoomPrefs.ty, zoomPrefs.sc);
         this.zoomDirective.changeZoomLevel(zoomMapExtents);
         this.log.debug('Map zoom prefs updated', zoomMapExtents);
-    }
-
-    backgroundClicked(event: MouseEvent) {
-        const elemTagName = event.target['tagName'] + ' ' + event.target['id'];
-        if (BACKGROUND_ELEMENTS.includes(elemTagName)) {
-            this.force.updateSelected(
-                <SelectedEvent>{
-                    uiElement: undefined,
-                    deselecting: true
-                }
-            );
-        }
     }
 
     /**

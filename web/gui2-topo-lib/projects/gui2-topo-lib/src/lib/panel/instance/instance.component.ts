@@ -17,7 +17,7 @@ import {
     Component,
     Input,
     Output,
-    EventEmitter, OnChanges, SimpleChanges
+    EventEmitter
 } from '@angular/core';
 import { animate, state, style, transition, trigger } from '@angular/animations';
 import {
@@ -71,11 +71,11 @@ export interface Instance {
         ])
     ]
 })
-export class InstanceComponent extends PanelBaseImpl implements OnChanges {
-    @Input() onosInstances: Instance[] = [];
+export class InstanceComponent extends PanelBaseImpl {
     @Input() divTopPx: number = 100;
     @Input() on: boolean = false; // Override the parent class attribute
     @Output() mastershipEvent = new EventEmitter<string>();
+    public onosInstances: Array<Instance>;
     public mastership: string;
     lionFn; // Function
 
@@ -87,6 +87,7 @@ export class InstanceComponent extends PanelBaseImpl implements OnChanges {
         private lion: LionService
     ) {
         super(fs, log);
+        this.onosInstances = <Array<Instance>>[];
 
         if (this.lion.ubercache.length === 0) {
             this.lionFn = this.dummyLion;
@@ -95,12 +96,6 @@ export class InstanceComponent extends PanelBaseImpl implements OnChanges {
             this.doLion();
         }
         this.log.debug('InstanceComponent constructed');
-    }
-
-    ngOnChanges(changes: SimpleChanges): void {
-        if (changes['onosInstances']) {
-            this.onosInstances = <Instance[]>changes['onosInstances'].currentValue;
-        }
     }
 
     /**
@@ -118,7 +113,7 @@ export class InstanceComponent extends PanelBaseImpl implements OnChanges {
      */
     chooseMastership(instId: string): void {
         if (this.mastership === instId) {
-            this.mastership = undefined;
+            this.mastership = '';
         } else {
             this.mastership = instId;
         }

@@ -74,17 +74,13 @@ export class MapSelectorComponent extends DetailsPanelBaseImpl implements OnInit
     }
 
     /**
-     * Read the LION bundle for panel and set up the lionFn
+     * Read the LION bundle for Details panel and set up the lionFn
      */
     doLion() {
         this.lionFn = this.lion.bundle('core.view.Topo');
     }
 
     choice(mapid: Object): void {
-        if (mapid) {
-            this.chosenMap.emit(<MapObject>this.mapSelectorResponse.maps[mapid['mapid']]);
-        } else {
-            this.chosenMap.emit(<MapObject>{});
-        }
+        this.chosenMap.emit(<MapObject>this.mapSelectorResponse.maps[mapid['mapid']]);
     }
 }

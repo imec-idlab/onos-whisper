@@ -20,7 +20,7 @@ import {
 } from '@angular/core';
 import {Link, LinkHighlight, UiElement} from '../../models';
 import {LogService} from 'gui2-fw-lib';
-import {NodeVisual, SelectedEvent} from '../nodevisual';
+import {NodeVisual} from '../nodevisual';
 import {animate, state, style, transition, trigger} from '@angular/animations';
 
 interface Point {
@@ -52,12 +52,11 @@ export class LinkSvgComponent extends NodeVisual implements OnChanges {
     @Input() label: string;
     @Input() scale = 1.0;
     isHighlighted: boolean = false;
-    @Output() selectedEvent = new EventEmitter<SelectedEvent>();
+    @Output() selectedEvent = new EventEmitter<UiElement>();
     @Output() enhancedEvent = new EventEmitter<Link>();
     enhanced: boolean = false;
     labelPosSrc: Point = {x: 0, y: 0};
     labelPosTgt: Point = {x: 0, y: 0};
-    lastTimer: any;
 
     constructor(
         protected log: LogService,
@@ -69,18 +68,14 @@ export class LinkSvgComponent extends NodeVisual implements OnChanges {
     ngOnChanges(changes: SimpleChanges) {
         if (changes['linkHighlight']) {
             const hl: LinkHighlight = changes['linkHighlight'].currentValue;
-            clearTimeout(this.lastTimer);
             this.highlighted = hl.css;
             this.label = hl.label;
             this.isHighlighted = true;
-            this.log.debug('Link hightlighted', this.link.id, this.highlighted);
-            if (hl.fadems > 0) {
-                this.lastTimer = setTimeout(() => {
-                    this.isHighlighted = false;
-                    this.highlighted = '';
-                    this.ref.markForCheck();
-                }, hl.fadems); // Disappear slightly before next one comes in
-            }
+            setTimeout(() => {
+                this.isHighlighted = false;
+                this.highlighted = '';
+                this.ref.markForCheck();
+            }, 4990);
 
         }
 
