@@ -53,6 +53,9 @@ CORE = UTILS + API + [
     "//protocols/restconf/client/ctl:onos-protocols-restconf-client-ctl",
     "//protocols/xmpp/core/api:onos-protocols-xmpp-core-api",
     "//protocols/xmpp/core/ctl:onos-protocols-xmpp-core-ctl",
+    "//protocols/whisper/api:onos-protocols-whisper-api",
+    "//protocols/whisper/app:onos-protocols-whisper-app",
+    "//protocols/whisper/datamodel:onos-protocols-whisper-datamodel",
     "//drivers/utilities:onos-drivers-utilities",
     "//providers/netconf/device:onos-providers-netconf-device",
     "//providers/openflow/device:onos-providers-openflow-device",
@@ -139,6 +142,7 @@ ONOS_PROVIDERS = [
     "//providers/p4runtime:onos-providers-p4runtime-oar",
     # "//providers/ietfte:onos-providers-ietfte-oar",
     "//providers/xmpp/device:onos-providers-xmpp-device-oar",
+    "//providers/whisper:onos-providers-whisper-oar",
 ]
 
 ONOS_APPS = [
