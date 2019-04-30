@@ -196,6 +196,8 @@ export class TopologyComponent implements AfterContentInit, OnInit, OnDestroy {
         this.is.loadIconDef('active');
         this.is.loadIconDef('uiAttached');
         this.is.loadIconDef('m_switch');
+        this.is.loadIconDef('m_sensor');
+        this.is.loadIconDef('m_rootsensor');
         this.is.loadIconDef('m_roadm');
         this.is.loadIconDef('m_router');
         this.is.loadIconDef('m_uiAttached');

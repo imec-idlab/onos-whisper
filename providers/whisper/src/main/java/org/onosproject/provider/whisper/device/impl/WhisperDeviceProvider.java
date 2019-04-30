@@ -133,11 +133,11 @@ public class WhisperDeviceProvider  extends AbstractProvider implements DevicePr
             DeviceDescription desc;
             if (isRoot){
 				desc =
-				new DefaultDeviceDescription(nodeId.uri(), Device.Type.OTHER, " IDLab", hw, sw, "1234",
+				new DefaultDeviceDescription(nodeId.uri(), Device.Type.ROOTSENSOR, " IDLab", hw, sw, "1234",
 				                            new ChassisId(chassisId));
             }else{
 				desc =
-				new DefaultDeviceDescription(nodeId.uri(), Device.Type.OTHER, " IDLab", hw, sw, "1234",
+				new DefaultDeviceDescription(nodeId.uri(), Device.Type.SENSOR, " IDLab", hw, sw, "1234",
 				                            new ChassisId(chassisId));
             }
 
