@@ -32,13 +32,9 @@ public class WirelessLink {
     private String m;
     private String mReversed;
     double pdr;
-    
-    //protected ConcurrentHashMap<String> neighbors = new ConcurrentHashMap<>();
-        
+           
     public WirelessLink(SensorNodeId n1,SensorNodeId n2) {
-    	
 
-    	
     		log.info("Creating Wireless Link...");
     		node1=n1;
     		node2=n2;
@@ -69,9 +65,4 @@ public class WirelessLink {
     	return this.pdr;
     }
 
-    
-    
-//    public Iterable<String> getNeighborNodes() {
-//        return neighbors.values();
-//    }
 }
