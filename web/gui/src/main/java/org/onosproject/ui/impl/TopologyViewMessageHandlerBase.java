@@ -159,6 +159,7 @@ public abstract class TopologyViewMessageHandlerBase extends TopoologyTrafficMes
         DEVICE_GLYPHS.put(Device.Type.SERVER, "m_endpoint");
         DEVICE_GLYPHS.put(Device.Type.SENSOR, "m_sensor");
         DEVICE_GLYPHS.put(Device.Type.ROOTSENSOR, "m_rootsensor");
+        DEVICE_GLYPHS.put(Device.Type.WHISPERSENSOR, "m_whispersensor");
     }
 
     private static final String DEFAULT_HOST_GLYPH = "m_endstation";

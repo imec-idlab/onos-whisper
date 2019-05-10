@@ -24,8 +24,7 @@ import org.onosproject.net.AnnotationKeys;
  * Link weight for measuring link cost using the link metric annotation.
  */
 public class MetricLinkWeight implements LinkWeigher {
-    private final Logger log = getLogger(getClass());
-
+	
     @Override
     public Weight getInitialWeight() {
         return ScalarWeight.toWeight(0.0);

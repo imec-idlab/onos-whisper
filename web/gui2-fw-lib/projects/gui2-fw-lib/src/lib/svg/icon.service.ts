@@ -48,6 +48,7 @@ export const glyphMapping = new Map<string, string>([
     ['m_switch', 'm_switch'],
     ['m_sensor', 'm_sensor'],
     ['m_rootsensor', 'm_rootsensor'],
+    ['m_whispersensor', 'm_whispersensor'],
     ['m_roadm', 'm_roadm'],
     ['m_router', 'm_router'],
     ['m_uiAttached', 'm_uiAttached'],

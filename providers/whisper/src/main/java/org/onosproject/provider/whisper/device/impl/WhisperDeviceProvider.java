@@ -105,10 +105,7 @@ public class WhisperDeviceProvider extends AbstractProvider implements DevicePro
     @Activate
     public void activate() {
     	deviceProviderService = deviceProviderRegistry.register(this);
-    	
-    	//hostProviderService = hostProviderRegistry.register(hostProvider);
-        //hostProvider.setHostProviderService(hostProviderService);
-    	
+    	   	
     	LOG.warn("Trying to add Device provider as listener to the controller");
     	controller.addSensorNodeListener(wListener);
     	    	
@@ -155,9 +152,15 @@ public class WhisperDeviceProvider extends AbstractProvider implements DevicePro
 				new DefaultDeviceDescription(node.getId().uri(), Device.Type.ROOTSENSOR, " IDLab", hw, sw, "1234",
 				                            new ChassisId(chassisId));
             }else{
-				desc =
-				new DefaultDeviceDescription(node.getId().uri(), Device.Type.SENSOR, " IDLab", hw, sw, "1234",
-				                            new ChassisId(chassisId));
+            	if (node.isWhisperNode()){
+					desc =
+					new DefaultDeviceDescription(node.getId().uri(), Device.Type.WHISPERSENSOR, " IDLab", hw, sw, "1234",
+					                            new ChassisId(chassisId));
+            	}else{
+					desc =
+					new DefaultDeviceDescription(node.getId().uri(), Device.Type.SENSOR, " IDLab", hw, sw, "1234",
+					                            new ChassisId(chassisId));
+            	}
             }
 			deviceProviderService.deviceConnected(did, desc);
 			deviceProviderService.updatePorts(did, buildPorts(portCount));

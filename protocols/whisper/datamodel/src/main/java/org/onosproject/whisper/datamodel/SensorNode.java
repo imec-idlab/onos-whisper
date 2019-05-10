@@ -24,12 +24,11 @@ public class SensorNode {
 	
     private boolean connected;
     private boolean root;
+    private boolean isWhisper;
     private SensorNodeId id=null;
     
     private InetAddress ipv6Addr;
     private InetAddress ipv4Addr;
-    
-    //protected ConcurrentHashMap<String> neighbors = new ConcurrentHashMap<>();
         
     public SensorNode(ObjectNode jsonTree) {
     	
@@ -48,8 +47,15 @@ public class SensorNode {
 	    	if (jsonTree.get("macParent").toString().equals("\"false\"")){
 	    		root=true;
 	    	}else{
+		    	if (jsonTree.get("isWhisperNode").toString().equals("\"false\"")){
+		    		isWhisper=false;
+		    	}else{
+		    		isWhisper=true;
+		    	}
 	    		root=false;
 	    	}
+	    	
+	    	
 	    	
 	    	String ipv6 = jsonTree.get("ipv6").toString().replace("\"", "");
 	    	
@@ -88,6 +94,10 @@ public class SensorNode {
 
     public boolean isRoot(){
     	return this.root;
+    }
+    
+    public boolean isWhisperNode(){
+    	return this.isWhisper;
     }
 
     public boolean isConnected(){

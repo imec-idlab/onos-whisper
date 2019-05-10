@@ -174,7 +174,7 @@ public final class DeviceProtoTranslator {
             case ROOTSENSOR:
                 return DeviceTypeProto.ROOTSENSOR;
             case WHISPERSENSOR:
-                return Type.WHISPERSENSOR;
+                return DeviceTypeProto.WHISPERSENSOR;
 
             default:
                 log.warn("Unexpected Device.Type: {}", type);

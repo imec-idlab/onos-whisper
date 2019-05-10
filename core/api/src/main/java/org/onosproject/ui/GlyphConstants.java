@@ -42,6 +42,7 @@ public final class GlyphConstants {
     public static final String MICROWAVE = "microwave";
     public static final String SENSOR = "m_sensor";
     public static final String ROOTSENSOR = "m_rootsensor";
+    public static final String WHISPERSENSOR = "m_whispersensor";
 
     public static final String ENDSTATION = "m_endstation";
     public static final String BGP_SPEAKER = "bgpSpeaker";
