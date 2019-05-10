@@ -1,4 +1,4 @@
-COMPILE_DEPS = CORE_DEPS
+COMPILE_DEPS = CORE_DEPS + JACKSON
 
 osgi_jar(
 	visibility = ["//visibility:public"],

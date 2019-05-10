@@ -1,6 +1,6 @@
 package org.onosproject.provider.whisper.message.impl;
 
-import org.onosproject.net.DefaultAnnotations;	
+import org.onosproject.net.DefaultAnnotations;
 import java.nio.ByteBuffer;				
 import java.util.List;
 
@@ -47,8 +47,12 @@ import org.onosproject.whisper.controller.WhisperController;
 import org.onosproject.whisper.controller.WhisperMessageListener;
 import org.onosproject.whisper.datamodel.SensorNodeId;
 import org.onosproject.whisper.datamodel.SensorNode;
+import org.onosproject.whisper.datamodel.WirelessLink;
 
 import org.onosproject.whisper.WhisperApp;
+
+import java.util.Iterator;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import static org.onlab.util.Tools.toHex;
 
@@ -81,8 +85,6 @@ public class WhisperMessageProvider extends AbstractProvider implements LinkProv
     static final String SCHEME = "whisper";
     
     private LinkProviderService linkProviderService;
-
-    public static final PortNumber CONTROLLER_PORT = PortNumber.portNumber(1);
   
     private Object lock = new Object();
     
@@ -107,8 +109,7 @@ public class WhisperMessageProvider extends AbstractProvider implements LinkProv
      * Creates a provider with the supplier identifier.
      */
     public WhisperMessageProvider() {
-        super(new ProviderId("whisper", "org.onosproject.provider.whisper"));
-        
+        super(new ProviderId("whisper", "org.onosproject.provider.whisper.message"));
         LOG.warn("Initializing Whisper Message Provider");
     }
     
@@ -142,11 +143,11 @@ public class WhisperMessageProvider extends AbstractProvider implements LinkProv
         	LOG.warn("Internal Whisper Handling of a message called from the listener: "+jsonTree.toString());
         	
         	LOG.info("Received macParent: "+jsonTree.get("macParent").toString());
-        	if (jsonTree.get("macParent").toString() == "false"){
-        	
+        	LOG.info("Received macParent: "+"\"false\"");
+        	if (jsonTree.get("macParent").toString().equals("\"false\"")){
+        		LOG.info("This is the root node");
         	
 	        	SensorNodeId nodeId = new SensorNodeId(jsonTree.get("mac").toString());
-	        	SensorNodeId parentId = new SensorNodeId(jsonTree.get("mac").toString());
 	        	 	       	
 				LOG.info("Received message from ROOT of SRC {} ",nodeId.uri());
 				
@@ -162,22 +163,14 @@ public class WhisperMessageProvider extends AbstractProvider implements LinkProv
 				}
 				portConnection++;
 				
-				ConnectPoint connectPoint = new ConnectPoint(incumbentDeviceId, CONTROLLER_PORT);
+				ConnectPoint connectPoint = new ConnectPoint(incumbentDeviceId, PortNumber.portNumber(portConnection));
 				sensorPortsUsed.put(incumbentDeviceId.uri().toString(), portConnection);
-				
-				Ethernet ethernet = new Ethernet();
-				
-				if (parentId != null) {
-					ethernet.setDestinationMACAddress(parentId.getMacAddress());
-				}
-				ethernet.setVlanID((short) nodeId.getSimpleId());
-	
+					
 	            String dpidStr = "of:0000000000000001";
 
 	            DeviceId connectionSwitchId = DeviceId.deviceId(dpidStr);
-	            ethernet.setSourceMACAddress(nodeId.getMacAddress());
 	            
-	            PortNumber portNumber = PortNumber.portNumber(3);
+	            PortNumber portNumber = PortNumber.portNumber(1);
 	            
 	            ConnectPoint switchConnectPoint = new ConnectPoint(connectionSwitchId, portNumber);
 	            LinkDescription sensorSwitchLinkDescription = new DefaultLinkDescription(connectPoint, switchConnectPoint, Link.Type.DIRECT);
@@ -199,52 +192,120 @@ public class WhisperMessageProvider extends AbstractProvider implements LinkProv
 	                linkDescriptions.put(incumbentDeviceId, sensorSwitchLinkDescription);
 	                LOG.info("Adding new link reversed");
 	            }
-	
 	            LOG.info("Connecting SINK {} with OFSwitch {}", connectPoint.deviceId(), switchConnectPoint.deviceId());
-        	
+        	  
         	}else{
         		
-	        	SensorNodeId nodeId = new SensorNodeId(jsonTree.get("mac").toString());
-	        	SensorNodeId parentId = new SensorNodeId(jsonTree.get("macParent").toString());	        	
-        		LOG.info("Received message of SRC {} his parent is {}",nodeId.uri(), parentId.uri());        		
-				DeviceId incumbentDeviceId = DeviceId.deviceId(nodeId.uri());
-				DeviceId parentDeviceId = DeviceId.deviceId(parentId.uri());				
-				SensorNode incumentNode = controller.getNode(incumbentDeviceId);
-	        	
-        		Ethernet ethernet = new Ethernet();
-        		ConnectPoint nodeConnectPoint = new ConnectPoint(incumbentDeviceId, CONTROLLER_PORT);
+        		LOG.info("This is not the root node");
         		
-        		float pdr=1;
-        		
-                ethernet.setSourceMACAddress(nodeId.getMacAddress());
-                ethernet.setDestinationMACAddress(parentId.getMacAddress());
-                ethernet.setVlanID((short) nodeId.getSimpleId());
-                                  
-                ConnectPoint parentConnectPoint = new ConnectPoint(parentDeviceId, CONTROLLER_PORT);
-                               
-	            LinkDescription sensorLinkDescription = new DefaultLinkDescription(nodeConnectPoint, parentConnectPoint, Link.Type.DIRECT);
+            	SensorNodeId nodeId = new SensorNodeId(jsonTree.get("mac").toString());
+            	SensorNodeId parentId = new SensorNodeId(jsonTree.get("macParent").toString());	
+            	
+            	LOG.info("Received message of SRC {} his parent is {}",nodeId.uri(), parentId.uri());  
+            	addLinkFromNodeToNode(nodeId,parentId);
+            	
+	            LOG.info("Adding Neighbors...");
 	            
-	            if (deviceService.getDevice(incumbentDeviceId) != null) {
-	                linkProviderService.linkDetected(sensorLinkDescription);
-	                LOG.info("Link detected");
-	            } else {
-	                linkDescriptions.put(incumbentDeviceId, sensorLinkDescription);
-	                LOG.info("Adding new link");
-	            }
-	            
-	            sensorLinkDescription = new DefaultLinkDescription(parentConnectPoint, nodeConnectPoint, Link.Type.DIRECT);
-	            
-	            if (deviceService.getDevice(incumbentDeviceId) != null) {
-	                linkProviderService.linkDetected(sensorLinkDescription);
-	                LOG.info("Link detected reversed");               
-	            } else {
-	                linkDescriptions.put(incumbentDeviceId, sensorLinkDescription);
-	                LOG.info("Adding new link reversed");
-	            }
+    	        Iterator<JsonNode> neighborNodes = jsonTree.get("neighbors").elements();
+    	        
+                while (neighborNodes.hasNext()) {
+                	JsonNode neighbor = neighborNodes.next();   
+                	SensorNodeId neighId = new SensorNodeId(neighbor.get("mac").toString());
+                	
+                	LOG.info("Node {} has neighbor {}",nodeId.uri(), neighId.uri());  
+                	
+                	DeviceId neighDeviceId = DeviceId.deviceId(neighId.uri());
+                	
+                	if (controller.getNode(neighDeviceId) != null) {
+                		LOG.info("Node {} already exist. tying to add link...", neighId.uri()); 
+                		LOG.info("My parent is {} This neighbor is {} ",jsonTree.get("macParent").toString(),neighbor.get("mac").toString());
+                		if (jsonTree.get("macParent").toString().equals(neighbor.get("mac").toString())){
+                			LOG.info("Node this link is with my parent, already added"); 
+                		}else{
+                			
+                			addLinkFromNodeToNode(nodeId,neighId);
+                		}
+                	}else{
+                		LOG.info("Node {} does not exist yet", neighId.uri()); 
+                	}
+                }
         	}
         }
+               
+        private void addLinkFromNodeToNode(SensorNodeId node1, SensorNodeId node2) {
+        	                   	
+        	WirelessLink link=new WirelessLink(node1,node2);
+        	
+        	boolean alreadyFound=false;
+        	
+        	Iterable<WirelessLink> wLinks = controller.getLinks();
+	        
+        	for(WirelessLink l: wLinks){
+
+            	LOG.info("checking link "+l.getStringId());
+            	LOG.info("new link "+link.getStringId());
+            	if( (l.getStringId().equals(link.getStringId())) || (l.getReversedStringId().equals(link.getStringId())) ){
+            		alreadyFound=true;
+            	}
+            }
+ 	
+    	    if (!alreadyFound) {
+    	    	LOG.info("Adding new Wireless Link");
+    		      controller.putLink(link);
+    		}else{
+    		    	LOG.info("link already exists skipping new link "+link.getStringId());
+    		    	return;
+    		}
+
+			DeviceId incumbentDeviceId = DeviceId.deviceId(node1.uri());
+			DeviceId neighDeviceId = DeviceId.deviceId(node2.uri());				
+			SensorNode incumentNode = controller.getNode(incumbentDeviceId);
+        				
+			Long curPortNumber = sensorPortsUsed.get(incumbentDeviceId.uri().toString());
+			long portConnection = 0;
+			if (curPortNumber != null) {
+				portConnection = curPortNumber.longValue();
+			}
+			portConnection++;
+						       		
+    		ConnectPoint nodeConnectPoint = new ConnectPoint(incumbentDeviceId, PortNumber.portNumber(portConnection+1));
+    		sensorPortsUsed.put(incumbentDeviceId.uri().toString(), portConnection);
+       
+			curPortNumber = sensorPortsUsed.get(neighDeviceId.uri().toString());
+			portConnection = 0;
+			if (curPortNumber != null) {
+				portConnection = curPortNumber.longValue();
+			}
+			portConnection++;
+            ConnectPoint parentConnectPoint = new ConnectPoint(neighDeviceId, PortNumber.portNumber(portConnection));
+            sensorPortsUsed.put(neighDeviceId.uri().toString(), portConnection);
+             
+            //example of adding metric as a link annotation. to be further implemented
+            SparseAnnotations linkAnnotations = DefaultAnnotations.builder()
+                    .set("metric", "3")
+                    .build();
+            
+            LinkDescription sensorLinkDescription = new DefaultLinkDescription(nodeConnectPoint, parentConnectPoint, Link.Type.DIRECT,linkAnnotations);
+           
+            if (deviceService.getDevice(incumbentDeviceId) != null) {
+                linkProviderService.linkDetected(sensorLinkDescription);
+                LOG.info("Link detected");
+            } else {
+                linkDescriptions.put(incumbentDeviceId, sensorLinkDescription);
+                LOG.info("Adding new link");
+            }
+            
+            sensorLinkDescription = new DefaultLinkDescription(parentConnectPoint, nodeConnectPoint, Link.Type.DIRECT);
+            
+            if (deviceService.getDevice(incumbentDeviceId) != null) {
+                linkProviderService.linkDetected(sensorLinkDescription);
+                LOG.info("Link detected reversed");               
+            } else {
+                linkDescriptions.put(incumbentDeviceId, sensorLinkDescription);
+                LOG.info("Adding new link reversed");
+            }
+        } 
     }
-    
     
     private class InternalDeviceListener implements DeviceListener {
 

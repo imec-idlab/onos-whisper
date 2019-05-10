@@ -51,6 +51,7 @@ import org.onosproject.net.topology.DefaultTopologyVertex;
 import org.onosproject.net.topology.GraphDescription;
 import org.onosproject.net.topology.HopCountLinkWeigher;
 import org.onosproject.net.topology.LinkWeigher;
+import org.onosproject.net.topology.MetricLinkWeight;
 import org.onosproject.net.topology.Topology;
 import org.onosproject.net.topology.TopologyCluster;
 import org.onosproject.net.topology.TopologyEdge;
@@ -379,6 +380,10 @@ public class DefaultTopology extends AbstractModel implements Topology {
         DefaultTopologyVertex srcV = new DefaultTopologyVertex(src);
         DefaultTopologyVertex dstV = new DefaultTopologyVertex(dst);
         Set<TopologyVertex> vertices = graph.getVertexes();
+        
+        log.info("Default TOPOLOGY with weights maxpaths, overwriting the LinkWeigher");
+        weigher= new MetricLinkWeight();
+        
         if (!vertices.contains(srcV) || !vertices.contains(dstV)) {
             // src or dst not part of the current graph
             return ImmutableSet.of();

@@ -45,7 +45,7 @@ public class WhisperAppCommand extends AbstractShellCommand{
     protected void doExecute() {
         print("Received command!");
         
-        print("Sending message to Whisper controller...");       
+        print("Sending message to Whisper controller...");        
         controller.sendWhisperMessage("Hello Whisper");
     }
 

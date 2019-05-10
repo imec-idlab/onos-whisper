@@ -1,6 +1,6 @@
 package org.onosproject.provider.whisper.device.impl;
 
-import java.nio.ByteBuffer;						
+import java.nio.ByteBuffer;
 import java.util.List;
 
 import com.google.common.collect.Lists;
@@ -33,6 +33,7 @@ import org.onosproject.cluster.ClusterService;
 import org.onosproject.whisper.controller.WhisperController;
 import org.onosproject.whisper.controller.WhisperSensorNodeListener;
 import org.onosproject.whisper.datamodel.SensorNodeId;
+import org.onosproject.whisper.datamodel.SensorNode;
 import static org.onosproject.net.DeviceId.deviceId;
 import com.fasterxml.jackson.databind.JsonNode;	
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -47,6 +48,21 @@ import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 
+import org.onosproject.net.host.DefaultHostDescription;
+import org.onosproject.net.HostLocation;
+import org.onosproject.net.Host;
+import java.net.URI;
+import org.onosproject.net.host.HostProviderRegistry;
+import org.onosproject.net.host.HostProvider;
+import org.onosproject.net.host.HostProviderService;
+import org.onosproject.net.HostId;
+import java.util.HashSet;
+import org.onlab.packet.VlanId;
+import org.onlab.packet.IpAddress;
+import java.util.Set;
+import org.onosproject.net.ConnectPoint;
+import org.onlab.packet.MacAddress;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,31 +71,31 @@ import org.slf4j.LoggerFactory;
  */
 
 @Component(immediate = true)
-public class WhisperDeviceProvider  extends AbstractProvider implements DeviceProvider {
+public class WhisperDeviceProvider extends AbstractProvider implements DeviceProvider {
 
     private static final Logger LOG = LoggerFactory.getLogger(WhisperDeviceProvider.class);
 
     protected int hostCount = 0;
 
-    protected int infrastructurePorts = 10;
+    protected int infrastructurePorts = 50; //i.e. max num neighbors
            
     protected DeviceProviderService deviceProviderService;
-   
+  
     static final String SCHEME = "whisper";
     
     private InternalWhisperDeviceProvider wListener = new InternalWhisperDeviceProvider();
-  
+      
     @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected WhisperController controller;
     
     @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected DeviceProviderRegistry deviceProviderRegistry;
-    
+        
     /**
      * Creates a provider with the supplier identifier.
      */
     public WhisperDeviceProvider() {
-        super(new ProviderId("whisper", "org.onosproject.provider.whisper"));
+        super(new ProviderId("whisper", "org.onosproject.provider.whisper.device"));
         
         LOG.warn("Initializing Whisper Device Provider ");
     }
@@ -89,6 +105,9 @@ public class WhisperDeviceProvider  extends AbstractProvider implements DevicePr
     @Activate
     public void activate() {
     	deviceProviderService = deviceProviderRegistry.register(this);
+    	
+    	//hostProviderService = hostProviderRegistry.register(hostProvider);
+        //hostProvider.setHostProviderService(hostProviderService);
     	
     	LOG.warn("Trying to add Device provider as listener to the controller");
     	controller.addSensorNodeListener(wListener);
@@ -109,55 +128,49 @@ public class WhisperDeviceProvider  extends AbstractProvider implements DevicePr
 
      
     /**
-     * Internal Packet Provider implementation.
+     * Internal Device Provider implementation.
      *
      */
     private class InternalWhisperDeviceProvider implements WhisperSensorNodeListener {
 
         @Override
-        public void handleNewSensorNode(SensorNodeId nodeId, boolean isRoot) {
-        	LOG.warn("Internal Whisper handleNewSensorNode called from sensor node listener");
+        public void handleNewSensorNode(SensorNode node) {
+        	LOG.info("Internal Whisper handleNewSensorNode called from sensor node listener");
 	
             if (deviceProviderService == null) {
             	LOG.error("Error! deviceProviderService is null");
                 return;
             }
-            LOG.warn("Creating device");
+            LOG.info("Creating device");
             
-            DeviceId did = deviceId(nodeId.uri());
+            DeviceId did = deviceId(node.getId().uri());
             int chassisId = 5;
 
             String hw = "0.0.1";
             String sw =  "0.0.1"; 
             int portCount = hostCount + infrastructurePorts;
             DeviceDescription desc;
-            if (isRoot){
+            if (node.isRoot()){
 				desc =
-				new DefaultDeviceDescription(nodeId.uri(), Device.Type.ROOTSENSOR, " IDLab", hw, sw, "1234",
+				new DefaultDeviceDescription(node.getId().uri(), Device.Type.ROOTSENSOR, " IDLab", hw, sw, "1234",
 				                            new ChassisId(chassisId));
             }else{
 				desc =
-				new DefaultDeviceDescription(nodeId.uri(), Device.Type.SENSOR, " IDLab", hw, sw, "1234",
+				new DefaultDeviceDescription(node.getId().uri(), Device.Type.SENSOR, " IDLab", hw, sw, "1234",
 				                            new ChassisId(chassisId));
             }
-
 			deviceProviderService.deviceConnected(did, desc);
 			deviceProviderService.updatePorts(did, buildPorts(portCount));
-			LOG.warn("Device created");
-
+			LOG.info("Device created");
         }
-        
-        
-        
-        
 
         @Override
-        public void handleDeprecatedSensorNode(SensorNodeId nodeId){
+        public void handleDeprecatedSensorNode(SensorNode node){
         	LOG.warn("Internal Whisper handleDeprecatedSensorNode called from the listener");
         }
 
-    }    
-    
+    }   
+  
     /**
      * Generates a list of a configured number of ports.
      *

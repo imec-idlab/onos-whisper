@@ -63,5 +63,5 @@ public final class OsgiPropertyConstants {
     public static final int DSS_MESSAGE_HANDLER_THREAD_POOL_SIZE_DEFAULT = 4;
 
     public static final String LINK_WEIGHT_FUNCTION = "linkWeightFunction";
-    public static final String LINK_WEIGHT_FUNCTION_DEFAULT = "hopCount";
+    public static final String LINK_WEIGHT_FUNCTION_DEFAULT = "linkMetric";
 }

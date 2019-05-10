@@ -119,6 +119,12 @@ public final class DeviceProtoTranslator {
                 return Type.OLS;
             case VIRTUAL_DEVICE:
                 return Type.VIRTUAL;
+            case SENSOR:
+                return Type.SENSOR;
+            case ROOTSENSOR:
+                return Type.ROOTSENSOR;
+            case WHISPERSENSOR:
+                return Type.WHISPERSENSOR;
 
             case UNRECOGNIZED:
             default:
@@ -163,6 +169,12 @@ public final class DeviceProtoTranslator {
                 return DeviceTypeProto.SWITCH;
             case VIRTUAL:
                 return DeviceTypeProto.VIRTUAL_DEVICE;
+            case SENSOR:
+                return DeviceTypeProto.SENSOR;
+            case ROOTSENSOR:
+                return DeviceTypeProto.ROOTSENSOR;
+            case WHISPERSENSOR:
+                return Type.WHISPERSENSOR;
 
             default:
                 log.warn("Unexpected Device.Type: {}", type);

@@ -15,7 +15,7 @@
  */
 package org.onosproject.whisper.rest;
 
-import java.io.IOException;			
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Date;
 import java.util.Map;
@@ -37,8 +37,8 @@ import java.io.IOException;
 import java.io.InputStream;
 
 import com.fasterxml.jackson.databind.JsonNode;	
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.core.JsonParser;
 
 import static org.onlab.util.Tools.nullIsNotFound;
 import static org.onlab.util.Tools.readTreeFromStream;
@@ -84,13 +84,14 @@ public class WhisperWebResource extends AbstractWebResource {
     @Path("setNode")
     @Consumes(MediaType.APPLICATION_JSON)
     public Response setMapping(InputStream stream) {
-        ObjectNode root = mapper().createObjectNode();
+        ObjectNode root = mapper().createObjectNode();  		
+    	mapper().configure(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES, true);
+    	mapper().configure(JsonParser.Feature.ALLOW_SINGLE_QUOTES, true);
+
         try {
-        	  
-        	
+
             ObjectNode jsonTree = readTreeFromStream(mapper(), stream);
             log.info("SetNode POST received ok: "+jsonTree.toString()+"");
-            
             
             JsonNode macID = jsonTree.get("mac");
             log.info("Creating SensorNode ID "+macID.toString());
@@ -98,13 +99,8 @@ public class WhisperWebResource extends AbstractWebResource {
             SensorNodeId id = new SensorNodeId(macID.toString());    
             log.info("Received info from node "+macID.toString());
             
-            if (jsonTree.get("macParent").toString() == "false"){
-            
-            	controller.addConnectedSensorNode(id,true);
-            }else{
-            	controller.addConnectedSensorNode(id,false);
-            }
-            
+            controller.addConnectedSensorNode(jsonTree);
+
             controller.processMessage(jsonTree);
             
         } catch (IOException e) {

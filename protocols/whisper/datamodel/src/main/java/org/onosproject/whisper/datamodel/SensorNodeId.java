@@ -22,17 +22,26 @@ public class SensorNodeId {
     private int simpleId;
     private String smac;
     private MacAddress macAddress;
+    private MacAddress macAddressHost;
 
     
   public SensorNodeId(String mac) {
 
 	  smac=mac;
 	  
+	  log.info("Creating SensorNodeId with mac:"+mac);
+
 	  StringBuilder sb = new StringBuilder(mac);
 	  sb.deleteCharAt(0);
       sb.deleteCharAt(17);
 	  String fmac = sb.toString();
 	  
+	  //this is a trick to assign a virtual mac address to the host within the sensor node
+	  String mHost = "00:00:00:00:00:00";
+	  String[] macAddressPartsHost = fmac.split(":");
+	  Byte[] macaddrHost = new Byte[6];
+	  byte[] mbytesHost = new byte[6];	
+
 	  String[] macAddressParts = fmac.split(":");
 	  Byte[] macaddr = new Byte[6];
 	  byte[] mbytes = new byte[6];	
@@ -40,17 +49,28 @@ public class SensorNodeId {
 		    Integer hex = Integer.parseInt(macAddressParts[i], 16);
 		    macaddr[i] = hex.byteValue();
 		    mbytes[i] = macaddr[i].byteValue();
+		    
+		    if (i>=4){
+			    Integer hexHost = Integer.parseInt(macAddressPartsHost[i], 16);
+			    macaddrHost[i] = hexHost.byteValue();
+			    mbytesHost[i] = macaddrHost[i].byteValue();
+		    }
 	   } 
 
 	   simpleId=((macaddr[4]*256)+(macaddr[5])); 
 	  
 	   macAddress = new MacAddress(mbytes);
+	   macAddressHost = new MacAddress(mbytesHost);
    }
   
    public MacAddress getMacAddress() {
 			return macAddress;  
    }
    
+   public MacAddress getMacAddressHost() {
+			return macAddressHost;
+   }
+
    public int getSimpleId() {  
 			return simpleId;  
    }

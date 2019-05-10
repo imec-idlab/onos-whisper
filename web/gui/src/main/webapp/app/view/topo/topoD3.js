@@ -79,6 +79,9 @@
         roadm_otn: 'm_roadm_otn',
         fiber_switch: 'm_fiberSwitch',
         microwave: 'm_microwave',
+        sensor: 'm_sensor',
+        rootsensor: 'm_rootsensor',
+        whispersensor: 'm_whispersensor',
     };
 
     var remappedHostTypes = {

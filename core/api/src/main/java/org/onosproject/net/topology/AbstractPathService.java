@@ -41,6 +41,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
@@ -52,14 +54,17 @@ import static com.google.common.base.Preconditions.checkNotNull;
 public abstract class AbstractPathService
     implements PathService {
 
+    private final Logger log = LoggerFactory.getLogger(getClass());
+
     private static final String ELEMENT_ID_NULL = "Element ID cannot be null";
     private static final EdgeLink NOT_HOST = new NotHost();
 
     private static final ProviderId PID = new ProviderId("core", "org.onosproject.core");
     private static final PortNumber P0 = PortNumber.portNumber(0);
 
-    protected static final LinkWeigher DEFAULT_WEIGHER =
-            new HopCountLinkWeigher();
+    //by default, for the moment, we use always the MetricLinkWeight weigher
+    protected static final LinkWeigher DEFAULT_WEIGHER = new MetricLinkWeight();
+            //new HopCountLinkWeigher();
 
     protected TopologyService topologyService;
 
@@ -70,7 +75,9 @@ public abstract class AbstractPathService
         checkNotNull(src, ELEMENT_ID_NULL);
         checkNotNull(dst, ELEMENT_ID_NULL);
 
-        LinkWeigher internalWeigher = weigher != null ? weigher : DEFAULT_WEIGHER;
+        LinkWeigher internalWeigher = new MetricLinkWeight();
+
+        //LinkWeigher internalWeigher = weigher != null ? weigher : DEFAULT_WEIGHER;
 
         // Get the source and destination edge locations
         EdgeLink srcEdge = getEdgeLink(src, true);
@@ -105,7 +112,8 @@ public abstract class AbstractPathService
         checkNotNull(src, ELEMENT_ID_NULL);
         checkNotNull(dst, ELEMENT_ID_NULL);
 
-        LinkWeigher internalWeigher = weigher != null ? weigher : DEFAULT_WEIGHER;
+        //LinkWeigher internalWeigher = weigher != null ? weigher : DEFAULT_WEIGHER;
+        LinkWeigher internalWeigher = new MetricLinkWeight();
 
         // Get the source and destination edge locations
         EdgeLink srcEdge = getEdgeLink(src, true);
@@ -138,7 +146,9 @@ public abstract class AbstractPathService
         checkNotNull(src, ELEMENT_ID_NULL);
         checkNotNull(dst, ELEMENT_ID_NULL);
 
-        LinkWeigher internalWeigher = weigher != null ? weigher : DEFAULT_WEIGHER;
+        //LinkWeigher internalWeigher = weigher != null ? weigher : DEFAULT_WEIGHER;
+
+        LinkWeigher internalWeigher = new MetricLinkWeight();
 
         // Get the source and destination edge locations
         EdgeLink srcEdge = getEdgeLink(src, true);
@@ -173,7 +183,9 @@ public abstract class AbstractPathService
         checkNotNull(src, ELEMENT_ID_NULL);
         checkNotNull(dst, ELEMENT_ID_NULL);
 
-        LinkWeigher internalWeigher = weigher != null ? weigher : DEFAULT_WEIGHER;
+        //LinkWeigher internalWeigher = weigher != null ? weigher : DEFAULT_WEIGHER;
+
+        LinkWeigher internalWeigher = new MetricLinkWeight();
 
         // Get the source and destination edge locations
         EdgeLink srcEdge = getEdgeLink(src, true);
@@ -221,6 +233,9 @@ public abstract class AbstractPathService
     // Produces a set of edge-to-edge paths using the set of infrastructure
     // paths and the given edge links.
     private Set<Path> edgeToEdgePaths(EdgeLink srcLink, EdgeLink dstLink, LinkWeigher weigher) {
+
+        weigher = new MetricLinkWeight();
+
         Set<Path> endToEndPaths = Sets.newHashSetWithExpectedSize(1);
         endToEndPaths.add(edgeToEdgePath(srcLink, dstLink, null, weigher));
         return endToEndPaths;
@@ -230,6 +245,8 @@ public abstract class AbstractPathService
     // paths and the given edge links.
     private Set<Path> edgeToEdgePaths(EdgeLink srcLink, EdgeLink dstLink, Set<Path> paths,
                                       LinkWeigher weigher) {
+        weigher = new MetricLinkWeight();
+
         Set<Path> endToEndPaths = Sets.newHashSetWithExpectedSize(paths.size());
         for (Path path : paths) {
             endToEndPaths.add(edgeToEdgePath(srcLink, dstLink, path, weigher));
@@ -238,6 +255,9 @@ public abstract class AbstractPathService
     }
 
     private Set<DisjointPath> edgeToEdgePathsDisjoint(EdgeLink srcLink, EdgeLink dstLink, LinkWeigher weigher) {
+
+        weigher = new MetricLinkWeight();
+
         Set<DisjointPath> endToEndPaths = Sets.newHashSetWithExpectedSize(1);
         endToEndPaths.add(edgeToEdgePathD(srcLink, dstLink, null, weigher));
         return endToEndPaths;
@@ -245,6 +265,8 @@ public abstract class AbstractPathService
 
     private Set<DisjointPath> edgeToEdgePathsDisjoint(EdgeLink srcLink, EdgeLink dstLink,
                                                              Set<DisjointPath> paths, LinkWeigher weigher) {
+        weigher = new MetricLinkWeight();
+
         Set<DisjointPath> endToEndPaths = Sets.newHashSetWithExpectedSize(paths.size());
         for (DisjointPath path : paths) {
             endToEndPaths.add(edgeToEdgePathD(srcLink, dstLink, path, weigher));
@@ -254,6 +276,9 @@ public abstract class AbstractPathService
 
     // Produces a direct edge-to-edge path.
     private Path edgeToEdgePath(EdgeLink srcLink, EdgeLink dstLink, Path path, LinkWeigher weigher) {
+
+        weigher = new MetricLinkWeight();
+
         List<Link> links = Lists.newArrayListWithCapacity(2);
         Weight cost = weigher.getInitialWeight();
 
@@ -277,6 +302,9 @@ public abstract class AbstractPathService
     // Produces a direct edge-to-edge path.
     private DisjointPath edgeToEdgePathD(EdgeLink srcLink, EdgeLink dstLink, DisjointPath path,
                                          LinkWeigher weigher) {
+
+        weigher = new MetricLinkWeight();
+
         Path primary = null;
         Path backup = null;
         if (path != null) {

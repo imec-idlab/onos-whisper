@@ -43,10 +43,12 @@ import static org.onlab.util.Tools.namedThreads;
 import org.onlab.rest.AbstractWebApplication;	
 
 import org.onosproject.whisper.controller.WhisperMessageListener;
+import org.onosproject.whisper.controller.WhisperHostListener;
 import org.onosproject.whisper.controller.WhisperSensorNodeListener;
 import org.onosproject.whisper.controller.WhisperController;
 import org.onosproject.whisper.datamodel.SensorNodeId;
 import org.onosproject.whisper.datamodel.SensorNode;
+import org.onosproject.whisper.datamodel.WirelessLink;
 import org.onosproject.whisper.rest.WhisperWebResource;
 
 import com.google.common.collect.Sets;
@@ -82,9 +84,14 @@ public class WhisperApp implements WhisperController {
 
     protected Set<WhisperMessageListener> whisperMessageListeners = Sets.newHashSet();
     
+    protected Set<WhisperHostListener> whisperHostListeners = Sets.newHashSet();
+    
     protected Set<WhisperSensorNodeListener> whisperSensorNodeListeners = Sets.newHashSet();
     
     protected ConcurrentHashMap<DeviceId, SensorNode> connectedSensorNodes = new ConcurrentHashMap<>();
+    
+    protected ConcurrentHashMap<String, WirelessLink> connectedLinks = new ConcurrentHashMap<>();
+    
     private WhisperChannelHandler channelHandler;
     private NioServerSocketChannelFactory execFactory;
 
@@ -97,7 +104,7 @@ public class WhisperApp implements WhisperController {
      
     @Activate
     protected void activate() {
-        log.info("Started Whisper");        
+        log.info("Started Whisper");
         this.run();
         log.info("Done.");
     }
@@ -157,7 +164,14 @@ public class WhisperApp implements WhisperController {
             this.whisperMessageListeners.add(wListener);
         }
     }
-       
+
+    @Override
+    public void addHostListener(WhisperHostListener hListener) {
+        if (!this.whisperHostListeners.contains(hListener)) {
+            this.whisperHostListeners.add(hListener);
+        }
+    }
+    
     @Override
     public void addSensorNodeListener(WhisperSensorNodeListener wListener) {
         if (!this.whisperSensorNodeListeners.contains(wListener)) {
@@ -180,41 +194,69 @@ public class WhisperApp implements WhisperController {
         return connectedSensorNodes.get(id);
     }
     
+    @Override
+    public Iterable<WirelessLink> getLinks() {
+        return connectedLinks.values();
+    }
+
+    @Override
+    public WirelessLink getLink(String id) {
+        return connectedLinks.get(id);
+    }
+    
+    @Override
+    public void putLink(WirelessLink link) {
+        connectedLinks.put(link.getStringId(),link);
+    }
+    
     public void processMessage(ObjectNode jsonTree){
     	
 	    log.info("Processing REST message");
 	    
-	    for (WhisperMessageListener wListener : whisperMessageListeners) {
-	    	wListener.handleMessage(jsonTree);
-	    } 
+	    SensorNode snode = new SensorNode(jsonTree);  
+	    SensorNodeId id = snode.getId();
+
+		for (WhisperMessageListener wListener : whisperMessageListeners) {
+		    	wListener.handleMessage(jsonTree);
+		} 	    
     }
     
-    public boolean addConnectedSensorNode(SensorNodeId id, boolean isRoot){
+    public boolean addConnectedSensorNode(ObjectNode jsonNode){
 	    log.info("Adding node...");
-	    	    
+
+	    SensorNode snode = new SensorNode(jsonNode);  
+	    SensorNodeId id = snode.getId();
+
 	    if (connectedSensorNodes.get(DeviceId.deviceId(id.uri())) != null) {
-	      log.info("Node already exists");
-          return false;
-	    }
+		      log.info("Node already exists skipping new Device");
+	          return false;
+		}
 	    
-	    SensorNode snode = new SensorNode(id);     
 	    connectedSensorNodes.put(DeviceId.deviceId(id.uri()),snode);
 	    log.info("Added node " + id.toString());
 	    for (WhisperSensorNodeListener wListener : whisperSensorNodeListeners) {
-	    	wListener.handleNewSensorNode(id,isRoot);
+	    	wListener.handleNewSensorNode(snode);
 	    }
+	    	    
 	    
+	    if (jsonNode.get("macParent").toString() != "false"){
+	    	log.info("Adding virtual host to " + id.toString());
+	    	
+		    for (WhisperHostListener hListener : whisperHostListeners) {
+		    	hListener.addVirtualHost(snode);
+		    }
+	    }
+
 	    return true;	    
     }
 
-    public void removeConnectedSensorNode(SensorNodeId id){
+    public void removeConnectedSensorNode(SensorNode node){
 	    log.info("Removing node...");
 	    
 	    for (WhisperSensorNodeListener wListener : whisperSensorNodeListeners) {
-	    	wListener.handleDeprecatedSensorNode(id);
+	    	wListener.handleDeprecatedSensorNode(node);
 	    }
     }
-    
     
     public boolean sendWhisperMessage(String val){
 	    log.info("Sending Whisper message to the IoT network...");	    	      

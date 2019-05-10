@@ -35,6 +35,9 @@ enum DeviceTypeProto {
     MICROWAVE = 13;
     OLS = 14;
     TERMINAL_DEVICE = 15;
+    SENSOR = 16;
+    ROOTSENSOR = 17;
+	WHISPERSENSOR = 18;
 }
 
 enum DeviceEventTypeProto {

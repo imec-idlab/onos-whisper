@@ -149,7 +149,7 @@ public class DistributedTopologyStore
                 .withTimestampProvider((k, v) -> clockService.getTimestamp())
                 .build();
         broadcastPoints.addListener(listener);
-        log.info("Started");
+        log.info("Started Distributed");
     }
 
     @Deactivate

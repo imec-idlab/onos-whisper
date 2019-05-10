@@ -50,6 +50,7 @@ import org.onosproject.net.topology.LinkWeigher;
 import org.onosproject.net.topology.PathService;
 import org.onosproject.net.topology.TopologyEdge;
 import org.onosproject.net.topology.TopologyVertex;
+import org.onosproject.net.AnnotationKeys;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -384,26 +385,33 @@ public abstract class ConnectivityIntentCompiler<T extends ConnectivityIntent>
         @Override
         public Weight weight(TopologyEdge edge) {
 
-            // iterate over all constraints in order and return the weight of
-            // the first one with fast fail over the first failure
-            Iterator<Constraint> it = constraints.stream()
-                    .filter(c -> !(c instanceof MarkerConstraint))
-                    .filter(c -> !(c instanceof PathViabilityConstraint))
-                    .iterator();
-
-            if (!it.hasNext()) {
-                return DEFAULT_HOP_WEIGHT;
-            }
-
-            double cost = it.next().cost(edge.link(), resourceService::isAvailable);
-            while (it.hasNext() && cost > 0) {
-                if (it.next().cost(edge.link(), resourceService::isAvailable) < 0) {
-                    // TODO shouldn't this be non-viable?
-                    cost = -1;
-                }
-            }
-            return ScalarWeight.toWeight(cost);
-
+            log.info("Using metric link weights instead");
+            String v = edge.link().annotations().value(AnnotationKeys.METRIC);
+            try {
+                return ScalarWeight.toWeight(v != null ? Double.parseDouble(v) : 1);
+            } catch (NumberFormatException e) {
+                return ScalarWeight.toWeight(1.0);
+            }  
+//        	log.info("Using compiler link weights");
+//            // iterate over all constraints in order and return the weight of
+//            // the first one with fast fail over the first failure
+//            Iterator<Constraint> it = constraints.stream()
+//                    .filter(c -> !(c instanceof MarkerConstraint))
+//                    .filter(c -> !(c instanceof PathViabilityConstraint))
+//                    .iterator();
+//
+//            if (!it.hasNext()) {
+//                return DEFAULT_HOP_WEIGHT;
+//            }
+//
+//            double cost = it.next().cost(edge.link(), resourceService::isAvailable);
+//            while (it.hasNext() && cost > 0) {
+//                if (it.next().cost(edge.link(), resourceService::isAvailable) < 0) {
+//                    // TODO shouldn't this be non-viable?
+//                    cost = -1;
+//                }
+//            }
+//            return ScalarWeight.toWeight(cost);
         }
     }
 
