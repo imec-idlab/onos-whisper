@@ -53,7 +53,7 @@ public class WhisperAppCommand extends AbstractShellCommand{
     @Completion(DeviceIdCompleter.class)
     String targetNode = null;
 
-    @Argument(index = 1, name = "parentNode", description = "ID of the desired parent of that Sensor",
+    @Argument(index = 1, name = "parentNode", description = "ID of the desired parent (next hop) of that Sensor",
             required = true, multiValued = false)
     @Completion(DeviceIdCompleter.class)
     String parentNode = null;
@@ -65,11 +65,17 @@ public class WhisperAppCommand extends AbstractShellCommand{
         
     	ObjectMapper mapper = new ObjectMapper();
     	ObjectNode jNode = mapper.createObjectNode();
-    	((ObjectNode) jNode).put("target", targetNode);
-    	((ObjectNode) jNode).put("oldparent", parentNode);
     	
-        print("Sending message to Whisper controller...");        
-        controller.sendWhisperSouthBandMessage("change-parent",jNode.toString());
+    	if (targetNode != targetNode){
+    	
+	    	((ObjectNode) jNode).put("target", targetNode);
+	    	((ObjectNode) jNode).put("newparent", c);
+	    	
+	        print("Sending message to Whisper controller...");        
+	        controller.sendWhisperSouthBandMessage("change-parent",jNode.toString());
+    	}else{
+    		print("Target node and new parent can't be the same");   
+    	}
     }
 
 }
