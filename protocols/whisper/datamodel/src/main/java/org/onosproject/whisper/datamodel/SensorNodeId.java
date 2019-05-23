@@ -1,6 +1,6 @@
 package org.onosproject.whisper.datamodel;
 
-import org.onlab.packet.MacAddress;				
+import org.onlab.packet.MacAddress;
 
 import java.math.BigInteger;
 import java.net.URI;
@@ -23,10 +23,19 @@ public class SensorNodeId {
     private String smac;
     private MacAddress macAddress;
     private MacAddress macAddressHost;
+    private boolean isRoot;
 
     
   public SensorNodeId(String mac) {
 
+	  if (mac.equals("false")){
+		  log.info("Not creating a null SensorNodeId, probably because it is the parent of the root");
+		  isRoot=true;
+		  simpleId=0;
+		  return;
+	  }
+	  
+	  isRoot=false;
 	  smac=mac;
 	  
 	  log.info("Creating SensorNodeId with mac:"+mac);
@@ -76,9 +85,13 @@ public class SensorNodeId {
    }
  
   public URI uri() {
-      
-      String schemeSpecificPart = getMacAddress().toString();
-
+	  String schemeSpecificPart;
+	  if (this.isRoot){
+		  schemeSpecificPart = "null";
+	  }else{
+		  schemeSpecificPart = getMacAddress().toString();
+	  }
+	  
       try {
           return new URI(SCHEME, schemeSpecificPart, null);
       } catch (URISyntaxException e) {

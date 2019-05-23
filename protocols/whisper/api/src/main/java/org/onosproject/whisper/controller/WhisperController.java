@@ -6,6 +6,7 @@ import org.onosproject.whisper.datamodel.SensorNodeId;
 import org.onosproject.whisper.datamodel.SensorNode;
 import org.onosproject.whisper.datamodel.WirelessLink;
 import org.onosproject.net.DeviceId;
+import org.onosproject.net.HostId;
 /**
  * emunicio 
  */
@@ -16,6 +17,10 @@ public interface WhisperController {
     public Iterable<SensorNode> getNodes();
 
     public SensorNode getNode(DeviceId id);
+
+    public Iterable<HostId> getHosts();
+
+    public HostId getHost(String s);
 
     public Iterable<WirelessLink> getLinks();
 
@@ -35,6 +40,6 @@ public interface WhisperController {
 
     public void removeSensorNodeListener(WhisperSensorNodeListener wListener);
 
-    public boolean sendWhisperMessage(String val);
+    public boolean sendWhisperSouthBandMessage(String type, String data);
 
 }

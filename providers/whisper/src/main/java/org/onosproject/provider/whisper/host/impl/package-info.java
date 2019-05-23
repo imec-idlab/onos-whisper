@@ -15,6 +15,6 @@
  */
 
 /**
- * Provider that uses OpenFlow controller as a means of adding and removing hosts.
+ * Provider that uses Whisper controller as a means of adding and removing hosts.
  */
 package org.onosproject.provider.whisper.host.impl;

@@ -90,7 +90,9 @@ public class WhisperMessageProvider extends AbstractProvider implements LinkProv
     
     private Map<DeviceId, LinkDescription> linkDescriptions = new ConcurrentHashMap<>();
     
-    private Map<String, Long> sensorPortsUsed = new ConcurrentHashMap<>();
+    private Map<String, Long> sensorPortsUsedPerDevice = new ConcurrentHashMap<>();
+
+    private Map<String, Long> sensorPortsUsedPerLink = new ConcurrentHashMap<>();
     
     @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected WhisperController controller;
@@ -155,25 +157,34 @@ public class WhisperMessageProvider extends AbstractProvider implements LinkProv
 						
 				SensorNode incumentNode = controller.getNode(incumbentDeviceId);
 				
-				Long curPortNumber = sensorPortsUsed.get(incumbentDeviceId.uri().toString());
+	            String dpidStr = "of:0000000000000001";
+
+	            DeviceId connectionSwitchId = DeviceId.deviceId(dpidStr);
+          
+				Long curPortNumber = sensorPortsUsedPerDevice.get(incumbentDeviceId.uri().toString());
 						
 				long portConnection = 0;
 				if (curPortNumber != null) {
-					portConnection = curPortNumber.longValue();
+					//portConnection = curPortNumber.longValue();
+					LOG.info("Keep alive from the ROOT, link already exists, nothing to do");	
+					return;
 				}
 				portConnection++;
 				
 				ConnectPoint connectPoint = new ConnectPoint(incumbentDeviceId, PortNumber.portNumber(portConnection));
-				sensorPortsUsed.put(incumbentDeviceId.uri().toString(), portConnection);
-					
-	            String dpidStr = "of:0000000000000001";
-
-	            DeviceId connectionSwitchId = DeviceId.deviceId(dpidStr);
+				sensorPortsUsedPerLink.put(incumbentDeviceId.uri().toString()+"-"+connectionSwitchId.uri().toString(), portConnection);					
+				sensorPortsUsedPerDevice.put(incumbentDeviceId.uri().toString(), portConnection);	            
+				
+				portConnection = 1;
+	            PortNumber portNumber = PortNumber.portNumber(portConnection);
 	            
-	            PortNumber portNumber = PortNumber.portNumber(1);
+	            SparseAnnotations linkAnnotations = DefaultAnnotations.builder()
+	                    .set("metric", "1")
+	                    .build();
 	            
 	            ConnectPoint switchConnectPoint = new ConnectPoint(connectionSwitchId, portNumber);
-	            LinkDescription sensorSwitchLinkDescription = new DefaultLinkDescription(connectPoint, switchConnectPoint, Link.Type.DIRECT);
+	            sensorPortsUsedPerLink.put(connectionSwitchId.uri().toString()+"-"+incumbentDeviceId.uri().toString(), portConnection);
+	            LinkDescription sensorSwitchLinkDescription = new DefaultLinkDescription(connectPoint, switchConnectPoint, Link.Type.DIRECT,linkAnnotations);
 	            
 	            if (deviceService.getDevice(incumbentDeviceId) != null) {
 	                linkProviderService.linkDetected(sensorSwitchLinkDescription);
@@ -183,7 +194,8 @@ public class WhisperMessageProvider extends AbstractProvider implements LinkProv
 	                LOG.info("Adding new link");
 	            }
 	            
-	            sensorSwitchLinkDescription = new DefaultLinkDescription(switchConnectPoint, connectPoint, Link.Type.DIRECT);
+
+	            sensorSwitchLinkDescription = new DefaultLinkDescription(switchConnectPoint, connectPoint, Link.Type.DIRECT,linkAnnotations);
 	            
 	            if (deviceService.getDevice(incumbentDeviceId) != null) {
 	                linkProviderService.linkDetected(sensorSwitchLinkDescription);
@@ -201,11 +213,41 @@ public class WhisperMessageProvider extends AbstractProvider implements LinkProv
             	SensorNodeId nodeId = new SensorNodeId(jsonTree.get("mac").toString());
             	SensorNodeId parentId = new SensorNodeId(jsonTree.get("macParent").toString());	
             	
-            	LOG.info("Received message of SRC {} his parent is {}",nodeId.uri(), parentId.uri());  
-            	addLinkFromNodeToNode(nodeId,parentId);
+            	SensorNode nodeTarget=controller.getNode(DeviceId.deviceId(nodeId.uri()));
             	
-	            LOG.info("Adding Neighbors...");
-	            
+            	LOG.info("Checking if there has been a parent change...");  
+            	LOG.info("Received message of SRC {} his current parent is {}",nodeId.uri(), parentId.uri());  
+            	LOG.info("The previous stored parent of {} was {}",nodeId.uri(), nodeTarget.getParentId().uri()); 
+            	
+            	if (nodeTarget.getParentId().uri().equals(parentId.uri())){
+            		addLinkFromNodeToNode(nodeId,parentId,true);			//if it exists, it will be discarded there
+            	}else{
+            		LOG.info("There seems to be a parent change");
+            		
+            		WirelessLink link=new WirelessLink(nodeId,parentId);
+                	if (linkExists(nodeId,parentId)==false){
+            	    	  LOG.info("Adding new Wireless Link");
+                		  addLinkFromNodeToNode(nodeId,parentId,true);		//it the link does not exists, create it normally with the new parent
+            		}else{
+            		    	LOG.info("link already exists: "+link.getStringId()+" Updating link with new parent");
+            		    	LOG.info("The link to be updated is between {} and new parent {}",nodeId.uri(), parentId.uri());  
+            		    	updateLinkParentship(nodeId,parentId,true);
+            		}
+            		
+                    if (linkExists(nodeId,nodeTarget.getParentId())==false){
+              	    	  LOG.info("Error. Parent detected without existing link!");
+                  		  //this should never happen, TODO throw exception
+              		}else{
+              		    	LOG.info("link already exists: "+link.getStringId()+" Updating link with old parent");
+              		    	LOG.info("The link to be updated is between {} and old parent {}",nodeId.uri(), nodeTarget.getParentId().uri()); 
+              		    	updateLinkParentship(nodeId,nodeTarget.getParentId(),false);
+              		}
+                    nodeTarget.setPreferredParent(parentId);
+            	}           	
+            	
+        		//Updating neighbours normally
+        		LOG.info("Adding neighbors links...");  
+            	          	            
     	        Iterator<JsonNode> neighborNodes = jsonTree.get("neighbors").elements();
     	        
                 while (neighborNodes.hasNext()) {
@@ -223,7 +265,7 @@ public class WhisperMessageProvider extends AbstractProvider implements LinkProv
                 			LOG.info("Node this link is with my parent, already added"); 
                 		}else{
                 			
-                			addLinkFromNodeToNode(nodeId,neighId);
+                			addLinkFromNodeToNode(nodeId,neighId,false);
                 		}
                 	}else{
                 		LOG.info("Node {} does not exist yet", neighId.uri()); 
@@ -232,58 +274,126 @@ public class WhisperMessageProvider extends AbstractProvider implements LinkProv
         	}
         }
                
-        private void addLinkFromNodeToNode(SensorNodeId node1, SensorNodeId node2) {
-        	                   	
+        private boolean linkExists(SensorNodeId node1, SensorNodeId node2){
+        	
         	WirelessLink link=new WirelessLink(node1,node2);
         	
-        	boolean alreadyFound=false;
+        	boolean found=false;
         	
         	Iterable<WirelessLink> wLinks = controller.getLinks();
 	        
         	for(WirelessLink l: wLinks){
 
             	LOG.info("checking link "+l.getStringId());
-            	LOG.info("new link "+link.getStringId());
             	if( (l.getStringId().equals(link.getStringId())) || (l.getReversedStringId().equals(link.getStringId())) ){
-            		alreadyFound=true;
+            		found=true;          		
+            		LOG.info("link already exists: "+link.getStringId());
+            		break;
             	}
             }
- 	
-    	    if (!alreadyFound) {
-    	    	LOG.info("Adding new Wireless Link");
+        	if (!found){
+        		LOG.info("link does not exist yet: "+link.getStringId());
+        	}
+        	return found;
+        }
+        
+        private void updateLinkParentship(SensorNodeId node1, SensorNodeId node2,boolean childParent) {
+        	
+        	DeviceId incumbentDeviceId = DeviceId.deviceId(node1.uri());
+        	DeviceId neighDeviceId = DeviceId.deviceId(node2.uri());
+        	SparseAnnotations linkAnnotations;
+            if (childParent){   
+            	LOG.info("setting new metric to 1");
+	            linkAnnotations = DefaultAnnotations.builder()
+	                    .set("metric", "1")
+	                    .build();
+            }else{
+            	LOG.info("setting new metric to 999");
+	            linkAnnotations = DefaultAnnotations.builder()
+	                    .set("metric", "999")
+	                    .build();
+            }
+        	
+            LOG.info("Updating link between {} and {}",node1.uri(), node2.uri());
+            
+            long portConnection=sensorPortsUsedPerLink.get(incumbentDeviceId.uri().toString()+"-"+neighDeviceId.uri().toString());          
+    		ConnectPoint nodeConnectPoint = new ConnectPoint(incumbentDeviceId, PortNumber.portNumber(portConnection));
+    		LOG.info("Node 1 using port "+portConnection);    
+    		
+    		
+    		portConnection=sensorPortsUsedPerLink.get(neighDeviceId.uri().toString()+"-"+incumbentDeviceId.uri().toString());
+            ConnectPoint parentConnectPoint = new ConnectPoint(neighDeviceId, PortNumber.portNumber(portConnection));
+            LOG.info("Node 2 using port "+portConnection);  
+                                   
+            LinkDescription sensorLinkDescription = new DefaultLinkDescription(nodeConnectPoint, parentConnectPoint, Link.Type.DIRECT,linkAnnotations);          
+            linkProviderService.linkDetected(sensorLinkDescription);
+            LOG.info("Link updated");
+            
+            sensorLinkDescription = new DefaultLinkDescription(parentConnectPoint, nodeConnectPoint, Link.Type.DIRECT,linkAnnotations);            
+            linkProviderService.linkDetected(sensorLinkDescription);
+            LOG.info("Link updated reversed");
+        }
+        
+        private void addLinkFromNodeToNode(SensorNodeId node1, SensorNodeId node2,boolean childParent) {
+        	                   	
+        	WirelessLink link=new WirelessLink(node1,node2);
+        	if (linkExists(node1,node2)==false){
+        		 
+    	    	  LOG.info("Adding new Wireless Link");
     		      controller.putLink(link);
     		}else{
-    		    	LOG.info("link already exists skipping new link "+link.getStringId());
+    		    	LOG.info("link already exists: "+link.getStringId());
     		    	return;
     		}
 
+        	 LOG.info("Creating a NEW link between {} and {}",node1.uri(), node2.uri());
+        	
 			DeviceId incumbentDeviceId = DeviceId.deviceId(node1.uri());
 			DeviceId neighDeviceId = DeviceId.deviceId(node2.uri());				
 			SensorNode incumentNode = controller.getNode(incumbentDeviceId);
         				
-			Long curPortNumber = sensorPortsUsed.get(incumbentDeviceId.uri().toString());
+			Long curPortNumber = sensorPortsUsedPerDevice.get(incumbentDeviceId.uri().toString());
+			 
+			
 			long portConnection = 0;
 			if (curPortNumber != null) {
 				portConnection = curPortNumber.longValue();
 			}
+			LOG.info("Node 1 was using port "+portConnection);  
 			portConnection++;
 						       		
-    		ConnectPoint nodeConnectPoint = new ConnectPoint(incumbentDeviceId, PortNumber.portNumber(portConnection+1));
-    		sensorPortsUsed.put(incumbentDeviceId.uri().toString(), portConnection);
+    		ConnectPoint nodeConnectPoint = new ConnectPoint(incumbentDeviceId, PortNumber.portNumber(portConnection));
+    		sensorPortsUsedPerLink.put(incumbentDeviceId.uri().toString()+"-"+neighDeviceId.uri().toString(), portConnection);
+    		sensorPortsUsedPerDevice.put(incumbentDeviceId.uri().toString(), portConnection); 
+    		
        
-			curPortNumber = sensorPortsUsed.get(neighDeviceId.uri().toString());
+			curPortNumber = sensorPortsUsedPerDevice.get(neighDeviceId.uri().toString());
+			
 			portConnection = 0;
 			if (curPortNumber != null) {
 				portConnection = curPortNumber.longValue();
 			}
+			LOG.info("Node 2 was using port "+portConnection); 
+			
 			portConnection++;
             ConnectPoint parentConnectPoint = new ConnectPoint(neighDeviceId, PortNumber.portNumber(portConnection));
-            sensorPortsUsed.put(neighDeviceId.uri().toString(), portConnection);
+            sensorPortsUsedPerLink.put(neighDeviceId.uri().toString()+"-"+incumbentDeviceId.uri().toString(), portConnection);
+            sensorPortsUsedPerDevice.put(neighDeviceId.uri().toString(), portConnection);  	
+              
              
-            //example of adding metric as a link annotation. to be further implemented
-            SparseAnnotations linkAnnotations = DefaultAnnotations.builder()
-                    .set("metric", "3")
-                    .build();
+            SparseAnnotations linkAnnotations;
+            
+            if (childParent){ 
+            	LOG.info("using metric to 1");
+	            linkAnnotations = DefaultAnnotations.builder()
+	                    .set("metric", "1")
+	                    .build();
+            }else{
+            	LOG.info("using metric to 999");
+	            linkAnnotations = DefaultAnnotations.builder()
+	                    .set("metric", "999")
+	                    .build();
+            }
             
             LinkDescription sensorLinkDescription = new DefaultLinkDescription(nodeConnectPoint, parentConnectPoint, Link.Type.DIRECT,linkAnnotations);
            
@@ -295,7 +405,7 @@ public class WhisperMessageProvider extends AbstractProvider implements LinkProv
                 LOG.info("Adding new link");
             }
             
-            sensorLinkDescription = new DefaultLinkDescription(parentConnectPoint, nodeConnectPoint, Link.Type.DIRECT);
+            sensorLinkDescription = new DefaultLinkDescription(parentConnectPoint, nodeConnectPoint, Link.Type.DIRECT,linkAnnotations);
             
             if (deviceService.getDevice(incumbentDeviceId) != null) {
                 linkProviderService.linkDetected(sensorLinkDescription);

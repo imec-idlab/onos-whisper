@@ -26,6 +26,7 @@ public class SensorNode {
     private boolean root;
     private boolean isWhisper;
     private SensorNodeId id=null;
+    private SensorNodeId parentId=null;
     
     private InetAddress ipv6Addr;
     private InetAddress ipv4Addr;
@@ -54,9 +55,7 @@ public class SensorNode {
 		    	}
 	    		root=false;
 	    	}
-	    	
-	    	
-	    	
+
 	    	String ipv6 = jsonTree.get("ipv6").toString().replace("\"", "");
 	    	
 	    	log.info("Checking adresses:"+ipv6);	 
@@ -68,6 +67,11 @@ public class SensorNode {
 	    	
 	    	ipv4Addr = InetAddress.getByName(ipv4); 
 	        this.id = new SensorNodeId(jsonTree.get("mac").toString());
+	        if (root){
+	        	this.parentId = new SensorNodeId("false");
+	        }else{
+	        	this.parentId = new SensorNodeId(jsonTree.get("macParent").toString());
+	        }
 	        
     	}catch (UnknownHostException e) {
     		e.printStackTrace();      
@@ -87,15 +91,23 @@ public class SensorNode {
     public String getStringIpv4(){
     	return this.ipv4Addr.toString();
     }
- 
+
     public SensorNodeId getId(){
     	return this.id;
+    }
+
+    public SensorNodeId getParentId(){
+    		return this.parentId;   	  	
+    }
+
+    public void setPreferredParent(SensorNodeId newParent){
+		this.parentId=newParent;   	  	
     }
 
     public boolean isRoot(){
     	return this.root;
     }
-    
+
     public boolean isWhisperNode(){
     	return this.isWhisper;
     }

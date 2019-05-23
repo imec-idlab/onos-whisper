@@ -1,6 +1,6 @@
 package org.onosproject.provider.whisper.host.impl;
 
-import java.nio.ByteBuffer;				
+import java.nio.ByteBuffer;
 import java.util.List;
 
 import com.google.common.collect.Lists;
@@ -31,6 +31,18 @@ import org.onosproject.net.host.HostProviderRegistry;
 import org.onosproject.net.host.HostProvider;
 import org.onosproject.net.host.HostProviderService;
 import org.onosproject.net.HostId;
+
+import org.onosproject.net.flow.DefaultTrafficSelector;
+import org.onosproject.net.flow.DefaultTrafficTreatment;
+import org.onosproject.net.flow.TrafficSelector;
+import org.onosproject.net.flow.TrafficTreatment;
+import org.onosproject.net.intent.Constraint;
+import org.onosproject.net.intent.HostToHostIntent;
+import org.onosproject.net.intent.IntentService;
+import org.onosproject.core.ApplicationId;
+import org.onosproject.core.CoreService;
+import org.onosproject.net.intent.Key;
+
 import java.util.HashSet;
 import org.onlab.packet.VlanId;
 import org.onlab.packet.IpAddress;
@@ -55,27 +67,36 @@ public class WhisperHostProvider extends AbstractProvider implements HostProvide
     static final String SCHEME = "whisper";
     
     private InternalHostProvider hostProvider = new InternalHostProvider();
-  
+
     @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected WhisperController controller;
-    
+
+    //intent related
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
+    protected IntentService intentService;
+
+    @Reference(cardinality = ReferenceCardinality.MANDATORY)
+    protected CoreService coreService;
+
     @Reference(cardinality = ReferenceCardinality.MANDATORY)
     protected HostProviderRegistry hostProviderRegistry;
+ 
+    private ApplicationId appId;
     
     /**
      * Creates a provider with the supplier identifier.
      */
     public WhisperHostProvider() {
-        super(new ProviderId("whisper", "org.onosproject.provider.whisper.host"));
-        
+        super(new ProviderId("whisper", "org.onosproject.provider.whisper.host"));      
         LOG.info("Initializing Whisper Host Provider ");
     }
       
     @Activate
     public void activate() {   	
-    	hostProviderService = hostProviderRegistry.register(this);
     	
-    	LOG.warn("Trying to add Host provider as listener to the controller");
+    	LOG.warn("Activating HOST Provider");
+    	hostProviderService = hostProviderRegistry.register(this);
+    	appId = coreService.registerApplication("org.onosproject.whisper");
     	controller.addHostListener(hostProvider);  	
         LOG.info("Started Whisper Host Provider");
     }
@@ -97,7 +118,7 @@ public class WhisperHostProvider extends AbstractProvider implements HostProvide
     /**
      * Internal host provider that provides host events.
      */
-    private class InternalHostProvider implements WhisperHostListener {
+    private class InternalHostProvider implements WhisperHostListener  {
       
         @Override
         public void addVirtualHost(SensorNode node) {
@@ -126,6 +147,37 @@ public class WhisperHostProvider extends AbstractProvider implements HostProvide
             HostId hostId = HostId.hostId(mac, vlanId);
             DefaultHostDescription desc = new DefaultHostDescription(mac, vlanId, locations, ips, false);
             hostProviderService.hostDetected(hostId, desc, false);
+             
+            //creating intent
+            LOG.info("Trying to add INTENT");
+            
+            //fixed as dst host
+            HostId dstId = HostId.hostId("CA:FE:BA:BE:CA:FE/None");
+            
+            LOG.info("dest");
+            
+            TrafficSelector selector = DefaultTrafficSelector.emptySelector();
+            
+            LOG.info("traffic selector");
+            TrafficTreatment treatment = DefaultTrafficTreatment.emptyTreatment();
+            LOG.info("KEY");
+            Key key = Key.of(hostId.toString() +"-"+ dstId.toString(), appId);
+
+            HostToHostIntent intent = (HostToHostIntent) intentService.getIntent(key);
+            
+            LOG.info("Host to Host INTENT");
+            HostToHostIntent hostIntent = HostToHostIntent.builder()
+                    .appId(appId)
+                    .key(key)
+                    .one(hostId)
+                    .two(dstId)
+                    .selector(selector)
+                    .treatment(treatment)
+                    .build();
+            LOG.info("Host to Host submitting intent...\n"+ hostIntent.toString());
+            intentService.submit(hostIntent);   
+
+            LOG.info("Host to Host intent submitted:\n"+ hostIntent.toString());
         }
     }
 }

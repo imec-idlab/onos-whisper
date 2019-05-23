@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.onosproject.whisper;	
+package org.onosproject.whisper;
 
-import org.osgi.service.component.annotations.Activate;				
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
@@ -50,6 +50,10 @@ import org.onosproject.whisper.datamodel.SensorNodeId;
 import org.onosproject.whisper.datamodel.SensorNode;
 import org.onosproject.whisper.datamodel.WirelessLink;
 import org.onosproject.whisper.rest.WhisperWebResource;
+
+import org.onosproject.net.HostId;
+import org.onlab.packet.MacAddress;
+import org.onlab.packet.VlanId;
 
 import com.google.common.collect.Sets;
 
@@ -90,6 +94,8 @@ public class WhisperApp implements WhisperController {
     
     protected ConcurrentHashMap<DeviceId, SensorNode> connectedSensorNodes = new ConcurrentHashMap<>();
     
+    protected ConcurrentHashMap<String, HostId> connectedHosts = new ConcurrentHashMap<>();
+
     protected ConcurrentHashMap<String, WirelessLink> connectedLinks = new ConcurrentHashMap<>();
     
     private WhisperChannelHandler channelHandler;
@@ -105,6 +111,7 @@ public class WhisperApp implements WhisperController {
     @Activate
     protected void activate() {
         log.info("Started Whisper");
+        channelHandler = new WhisperChannelHandler(this);
         this.run();
         log.info("Done.");
     }
@@ -122,42 +129,12 @@ public class WhisperApp implements WhisperController {
         try {
         	log.info("Starting thread Whisper");
         	
-            final ServerBootstrap bootstrap = createServerBootStrap();
-
-            bootstrap.setOption("reuseAddress", true);
-            bootstrap.setOption("child.keepAlive", true);
-            bootstrap.setOption("child.sendBufferSize", WhisperApp.SEND_BUFFER_SIZE);
-            bootstrap.setOption("child.receiveBufferSize", WhisperApp.RCV_BUFFER_SIZE);
-
-            ChannelPipelineFactory pfact =
-                    new WhisperPipelineFactory(this, null);
-            bootstrap.setPipelineFactory(pfact);
-            InetSocketAddress sa = new InetSocketAddress(whisperPort);
-            cg = new DefaultChannelGroup();
-            cg.add(bootstrap.bind(sa));
-            
-            log.info("Listening for sensor node connections on {}", sa);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
     }
-      
-    private ServerBootstrap createServerBootStrap() {
 
-        if (workerThreads == 0) {
-            execFactory =  new NioServerSocketChannelFactory(
-                    Executors.newCachedThreadPool(namedThreads("WhisperApp-boss-%d")),
-                    Executors.newCachedThreadPool(namedThreads("WhisperApp-worker-%d")));
-            return new ServerBootstrap(execFactory);
-        } else {
-            execFactory = new NioServerSocketChannelFactory(
-                    Executors.newCachedThreadPool(namedThreads("WhisperApp-boss-%d")),
-                    Executors.newCachedThreadPool(namedThreads("WhisperApp-worker-%d")), workerThreads);
-            return new ServerBootstrap(execFactory);
-        }
-    }
-     
     @Override
     public void addMessageListener(WhisperMessageListener wListener) {
         if (!this.whisperMessageListeners.contains(wListener)) {
@@ -195,6 +172,16 @@ public class WhisperApp implements WhisperController {
     }
     
     @Override
+    public Iterable<HostId> getHosts() {
+        return connectedHosts.values();
+    }
+    
+    @Override
+    public HostId getHost(String s) {
+        return connectedHosts.get(s);
+    }  
+    
+    @Override
     public Iterable<WirelessLink> getLinks() {
         return connectedLinks.values();
     }
@@ -218,7 +205,27 @@ public class WhisperApp implements WhisperController {
 
 		for (WhisperMessageListener wListener : whisperMessageListeners) {
 		    	wListener.handleMessage(jsonTree);
-		} 	    
+		}
+		
+        MacAddress mac = snode.getId().getMacAddressHost();
+        VlanId vlanId = VlanId.vlanId((short) -1);
+		HostId hostId = HostId.hostId(mac, vlanId);
+		
+	    if (connectedHosts.get(hostId.toString()) != null) {
+		      log.info("Host already exists skipping new ");
+	          return;
+		}
+		
+	    connectedHosts.put(hostId.toString(),hostId);
+	    if (!jsonTree.get("macParent").toString().equals("\"false\"")){
+	    	log.info("Adding virtual host to " + id.toString());
+	    	
+		    for (WhisperHostListener hListener : whisperHostListeners) {
+		    	hListener.addVirtualHost(snode);
+		    }
+	    }else{
+	    	log.info("Not adding virtual host because this is the root");
+	    }
     }
     
     public boolean addConnectedSensorNode(ObjectNode jsonNode){
@@ -233,18 +240,9 @@ public class WhisperApp implements WhisperController {
 		}
 	    
 	    connectedSensorNodes.put(DeviceId.deviceId(id.uri()),snode);
-	    log.info("Added node " + id.toString());
+	    log.info("Added node " + id.uri().toString());
 	    for (WhisperSensorNodeListener wListener : whisperSensorNodeListeners) {
 	    	wListener.handleNewSensorNode(snode);
-	    }
-	    	    
-	    
-	    if (jsonNode.get("macParent").toString() != "false"){
-	    	log.info("Adding virtual host to " + id.toString());
-	    	
-		    for (WhisperHostListener hListener : whisperHostListeners) {
-		    	hListener.addVirtualHost(snode);
-		    }
 	    }
 
 	    return true;	    
@@ -258,17 +256,11 @@ public class WhisperApp implements WhisperController {
 	    }
     }
     
-    public boolean sendWhisperMessage(String val){
+    public boolean sendWhisperSouthBandMessage(String type, String data){
 	    log.info("Sending Whisper message to the IoT network...");	    	      
-	    return this.channelHandler.write(val);
+	    return this.channelHandler.write(type,data);
    
     }
    
-    public void setChannelHandlerController(WhisperChannelHandler channelHandler){
-
-	    log.info("Setting channel...");
-	    this.channelHandler=channelHandler;
-	    	      
-    }
    
 }

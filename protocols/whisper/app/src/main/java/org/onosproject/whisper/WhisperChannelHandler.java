@@ -9,6 +9,36 @@ import org.jboss.netty.channel.ExceptionEvent;
 import org.jboss.netty.channel.MessageEvent;
 import org.jboss.netty.handler.timeout.IdleStateAwareChannelHandler;
 
+import org.jboss.netty.handler.codec.http.HttpRequest;
+import org.jboss.netty.handler.codec.http.DefaultHttpRequest;
+import org.jboss.netty.handler.codec.http.HttpHeaders;
+import org.jboss.netty.handler.codec.http.HttpMethod;
+import org.jboss.netty.handler.codec.http.HttpVersion;
+
+import java.net.InetSocketAddress;
+import java.nio.charset.Charset;
+import java.util.concurrent.Executors;
+import org.jboss.netty.bootstrap.ClientBootstrap;
+import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
+import org.jboss.netty.channel.ChannelPipelineFactory;
+import org.jboss.netty.channel.ChannelPipeline;
+import org.jboss.netty.channel.Channels;
+import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
+import org.jboss.netty.handler.codec.http.HttpResponse;
+import org.jboss.netty.channel.MessageEvent;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.handler.codec.http.HttpChunkAggregator;
+import org.jboss.netty.handler.codec.http.HttpClientCodec;
+import org.jboss.netty.util.CharsetUtil;
+
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+
+import java.net.URI;
+import java.net.URISyntaxException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,94 +53,89 @@ import java.util.List;
 /**
  * emunicio.
  */
-public class WhisperChannelHandler extends IdleStateAwareChannelHandler{
+public class WhisperChannelHandler{
     private static final Logger log = LoggerFactory.getLogger(WhisperChannelHandler.class);
     private final WhisperApp controller;
 
-    private Channel channel;
-    byte[] prevRecvBuf = null;
+    private static StringBuffer buf = new StringBuffer();
 
     public WhisperChannelHandler(WhisperApp controller) {
         this.controller = controller;
     }
 
-    @Override
-    public void channelConnected(ChannelHandlerContext ctx,
-                                 ChannelStateEvent e) throws Exception {
-        channel = e.getChannel();        
-        controller.setChannelHandlerController(this);        
-        log.info("New network connection from {}", channel.getRemoteAddress());
-       
-    }
+    public boolean write(String messageType,String msg) {
+      	
+        try {
 
-    @Override
-    public void channelDisconnected(ChannelHandlerContext ctx,
-                                    ChannelStateEvent e) throws Exception {
-        log.info("Channel disconnected");
-    }
-      
-    public boolean write(String msg) {
-        if (msg != null) {
-		boolean okToSend=true;
-                byte[] buf = msg.getBytes();
-                ChannelBuffer channelBuffer = ChannelBuffers.wrappedBuffer(buf);
-                if (!channel.isConnected()) {
-                    log.info("Channel not connected");
-		    okToSend=false;
-                }
-                if (!channel.isOpen()) {
-                    log.info("Channel not open");
-		    okToSend=false;
-                }
-                if (!channel.isWritable()) {
-                    log.info("Channel not writeable");
-		    okToSend=false;
-                }
-                if (!channel.isReadable()) {
-                    log.info("Channel not readable");
-		    okToSend=false;
-                }
+        	if ( (msg != null) || (messageType != null) ) {
+        	
+        		String URL = System.getProperty("url", "http://127.0.0.1:9999/");
+            	
+            	URI uri = new URI(URL);
+            	String scheme = uri.getScheme() == null? "http" : uri.getScheme();
+            	String host = uri.getHost() == null? "127.0.0.1" : uri.getHost();
+            	int port = uri.getPort();
 
-		if (okToSend){
-                	channel.write(channelBuffer);
+            	ObjectMapper mapper = new ObjectMapper();
+            	ObjectNode jNode = mapper.createObjectNode();
+            	((ObjectNode) jNode).put("protocol", "onos-whisper-sb");
+            	((ObjectNode) jNode).put("message", messageType);
+            	((ObjectNode) jNode).put("data", msg);
             
-		    	log.info("Sending message {}", msg.toString());
-		    	log.info("Channel status is Connected {} Open {}",
-		            channel.isConnected(),
-		            channel.isOpen());
-	    		return true;
-		}else{
-			return false;
+    			ClientBootstrap client = new ClientBootstrap(
+    				new NioClientSocketChannelFactory(
+    						Executors.newCachedThreadPool(),
+    						Executors.newCachedThreadPool()));
+
+    			client.setPipelineFactory(new ClientPipelineFactory());
+
+    			//Connect to server, wait till connection is established, get channel to write to
+    			Channel channel = client.connect(new InetSocketAddress("127.0.0.1", 9999)).awaitUninterruptibly().getChannel();
+    		
+    			//Writing request to channel and wait till channel is closed from server
+    			HttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "test");
+    			ChannelBuffer buffer = ChannelBuffers.copiedBuffer(jNode.toString(), Charset.defaultCharset());
+    			request.headers().set(HttpHeaders.Names.CONTENT_TYPE, "application/json");
+    			request.headers().set(HttpHeaders.Names.CONTENT_LENGTH, buffer.readableBytes());
+    			request.setContent(buffer);
+
+    			channel.write(request).awaitUninterruptibly().getChannel().getCloseFuture().awaitUninterruptibly();
+    		     
+    	    	log.info("Sent!");
+    	    	return true;
+            
+        	}else{
+        		log.warn("Message or Type is Null");
+        		return false;
+        	}
+
+        }catch(URISyntaxException e){
+            e.printStackTrace();
+            return false;
+        }
+    }
+       
+	private static class ClientPipelineFactory implements ChannelPipelineFactory {
+
+		@Override
+		public ChannelPipeline getPipeline() throws Exception {
+			ChannelPipeline pipeline = Channels.pipeline();
+
+			pipeline.addLast("codec", new HttpClientCodec());
+
+			pipeline.addLast("aggregator", new HttpChunkAggregator(1048576));
+
+			pipeline.addLast("handler", new TestResponseHandler());
+			return pipeline;
 		}
-        } else {
-        	log.warn("Null Message");
-//            byte[] buf = {5, 0, 0, 0, 0};
-//            ChannelBuffer channelBuffer = ChannelBuffers.wrappedBuffer(buf);
-//            channel.write(channelBuffer);
-		return false;
-	    
-        }
-    }
-     
-    @Override
-    public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {    	
-    	log.info("Message received from socket"); 	    	
-    }
-    
-    @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
-        if (e.getCause() instanceof IOException) {
-            log.error("Disconnecting node");
-            StackTraceElement[] stackTraceElements = e.getCause().getStackTrace();
-            for (int i = 0; i < stackTraceElements.length; i++) {
-                log.error(stackTraceElements[i].toString());
-            }
-        } else {
-            log.error("Error while processing message from sensor node ");
-            StackTraceElement[] stackTraceElements = e.getCause().getStackTrace();
-            for (int i = 0; i < stackTraceElements.length; i++) {
-                log.error(stackTraceElements[i].toString());
-            }
-        }
-    }
+	}
+	
+	private static class TestResponseHandler extends SimpleChannelUpstreamHandler {
+		@Override
+		public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
+			HttpResponse response = (HttpResponse) e.getMessage();
+			buf.append(response.getContent().toString(CharsetUtil.UTF_8));
+			super.messageReceived(ctx, e);
+		}
+	}
 }
