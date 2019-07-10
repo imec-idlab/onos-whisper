@@ -66,10 +66,10 @@ public class WhisperAppCommand extends AbstractShellCommand{
     	ObjectMapper mapper = new ObjectMapper();
     	ObjectNode jNode = mapper.createObjectNode();
     	
-    	if (targetNode != targetNode){
+    	if (targetNode != parentNode){
     	
 	    	((ObjectNode) jNode).put("target", targetNode);
-	    	((ObjectNode) jNode).put("newparent", c);
+	    	((ObjectNode) jNode).put("newparent", parentNode);
 	    	
 	        print("Sending message to Whisper controller...");        
 	        controller.sendWhisperSouthBandMessage("change-parent",jNode.toString());
