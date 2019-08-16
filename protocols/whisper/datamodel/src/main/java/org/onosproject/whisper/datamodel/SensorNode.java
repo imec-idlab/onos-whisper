@@ -11,6 +11,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 import org.onosproject.net.DeviceId;
+import java.util.Iterator;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,7 +21,7 @@ import org.slf4j.LoggerFactory;
  */
 public class SensorNode {
 	
-	private final Logger log = LoggerFactory.getLogger(getClass());
+    private final Logger log = LoggerFactory.getLogger(getClass());
 	
     private boolean connected;
     private boolean root;
@@ -30,6 +31,8 @@ public class SensorNode {
     
     private InetAddress ipv6Addr;
     private InetAddress ipv4Addr;
+    
+    private ConcurrentHashMap<String, Cell> usedCells = new ConcurrentHashMap<>();
         
     public SensorNode(ObjectNode jsonTree) {
     	
@@ -56,6 +59,30 @@ public class SensorNode {
 	    		root=false;
 	    	}
 
+	        log.info("Checking cells...");
+	    	int ts=0;
+	    	int ch=0;
+	    	String type="UNKOWN";
+	    	String txNode=null;
+	    	String rxNode=null;
+	    	Cell c;
+		JsonNode cell;
+	    	
+	        Iterator<JsonNode> cells = jsonTree.get("cells").elements();
+                while (cells.hasNext()) {
+		    	cell = cells.next();
+		    	log.info("Checking cell:"+cell);
+		    	ts=Integer.parseInt(cell.get("tslot").toString()); 
+		    	ch=Integer.parseInt(cell.get("ch").toString());
+		    	type=cell.get("type").toString();
+		    	rxNode=cell.get("rxNode").toString();
+		        txNode=cell.get("txNode").toString();
+		        SensorNodeId node1=new SensorNodeId(txNode);
+		        SensorNodeId node2=new SensorNodeId(rxNode);
+		    	c = new Cell(node1,node2,ts,ch,type);
+		    	this.putCell(c);
+                }
+	    	
 	    	String ipv6 = jsonTree.get("ipv6").toString().replace("\"", "");
 	    	
 	    	log.info("Checking adresses:"+ipv6);	 
@@ -118,6 +145,18 @@ public class SensorNode {
 
     public void setConnected(boolean set){
     	this.connected = set;
+    }
+    
+    public Iterable<Cell> getCells() {
+        return this.usedCells.values();
+    }
+
+    public Cell getCell(String id) {
+        return this.usedCells.get(id);
+    }
+    
+    public void putCell(Cell cell) {
+    	this.usedCells.put(cell.getStringId(),cell);
     }
 
     
