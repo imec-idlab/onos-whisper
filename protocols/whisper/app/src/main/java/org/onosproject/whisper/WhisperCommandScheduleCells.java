@@ -26,6 +26,8 @@ import org.onlab.osgi.ServiceDirectory;
 import org.onlab.osgi.DefaultServiceDirectory;
 
 import org.onosproject.cli.net.DeviceIdCompleter;
+import org.onosproject.cli.net.SixtopPCellTypeCompleter;
+import org.onosproject.cli.net.SixtopPOperationCompleter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,26 +41,45 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * emunicio
  */
 @Service
-@Command(scope = "onos", name = "change-parent",
+@Command(scope = "onos", name = "schedule-cell",
          description = "Sample Apache Karaf CLI command")
-public class WhisperAppCommand extends AbstractShellCommand{
+public class WhisperCommandScheduleCells extends AbstractShellCommand{
 
 	private final Logger log = LoggerFactory.getLogger(getClass());
        
 	private final WhisperController controller = get(WhisperController.class);
        
 	
-    @Argument(index = 0, name = "targetNode", description = "ID of target Sensor",
+    @Argument(index = 0, name = "operation", description = "6P Command: ADD,DEL,CLEAR,etc.",
             required = true, multiValued = false)
-    @Completion(DeviceIdCompleter.class)
-    String targetNode = null;
+    @Completion(SixtopPOperationCompleter.class)
+    String operation = null;
 
-    @Argument(index = 1, name = "parentNode", description = "ID of the desired parent (next hop) of that Sensor",
+    @Argument(index = 1, name = "srcNode", description = "ID of the src node",
             required = true, multiValued = false)
     @Completion(DeviceIdCompleter.class)
-    String parentNode = null;
+    String srcNode = null;
+    
+    @Argument(index = 2, name = "dstNode", description = "ID of the dst node. FF if multicast",
+            required = true, multiValued = false)
+    @Completion(DeviceIdCompleter.class)
+    String dstNode = null;
 	
-	
+    @Argument(index = 3, name = "type", description = "Cell type: TX,RX,TXRX",
+            required = true, multiValued = false)
+    @Completion(SixtopPCellTypeCompleter.class)
+    String type = null;
+    
+    @Argument(index = 4, name = "ts", description = "Timeslot: from 0 to 100",
+            required = true, multiValued = false)
+    //@Completion(DeviceIdCompleter.class)
+    String ts = null;
+    
+    @Argument(index = 5, name = "ch", description = "Channel: from 0 to 15",
+            required = true, multiValued = false)
+    //@Completion(DeviceIdCompleter.class)
+    String ch = null;
+    
     @Override
     protected void doExecute() {
         print("Received command!");
@@ -66,15 +87,20 @@ public class WhisperAppCommand extends AbstractShellCommand{
     	ObjectMapper mapper = new ObjectMapper();
     	ObjectNode jNode = mapper.createObjectNode();
     	
-    	if (targetNode != parentNode){
+    	if (srcNode != dstNode){
     	
-	    	((ObjectNode) jNode).put("target", targetNode);
-	    	((ObjectNode) jNode).put("newparent", parentNode);
+    		((ObjectNode) jNode).put("operation", operation);
+	    	((ObjectNode) jNode).put("srcNode", srcNode);
+	    	((ObjectNode) jNode).put("dstNode", dstNode);
+	    	((ObjectNode) jNode).put("type", type);
+	    	((ObjectNode) jNode).put("ts", ts);
+	    	((ObjectNode) jNode).put("ch", ch);
 	    	
 	        print("Sending message to Whisper controller...");        
-	        controller.sendWhisperSouthBandMessage("change-parent",jNode.toString());
+	        controller.sendWhisperSouthBandMessage("schedule-cell",jNode.toString());
+
     	}else{
-    		print("Target node and new parent can't be the same");   
+    		print("Src node and Dst parent can't be the same");   
     	}
     }
 
