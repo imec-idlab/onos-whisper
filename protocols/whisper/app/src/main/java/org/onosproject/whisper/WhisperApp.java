@@ -38,6 +38,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Set;
+import java.util.Iterator;
 
 import static org.onlab.util.Tools.namedThreads;
 import org.onlab.rest.AbstractWebApplication;	
@@ -49,6 +50,7 @@ import org.onosproject.whisper.controller.WhisperController;
 import org.onosproject.whisper.datamodel.SensorNodeId;
 import org.onosproject.whisper.datamodel.SensorNode;
 import org.onosproject.whisper.datamodel.WirelessLink;
+import org.onosproject.whisper.datamodel.Cell;
 import org.onosproject.whisper.rest.WhisperWebResource;
 
 import org.onosproject.net.HostId;
@@ -58,6 +60,7 @@ import org.onlab.packet.VlanId;
 import com.google.common.collect.Sets;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * Skeletal ONOS application component.
@@ -110,7 +113,7 @@ public class WhisperApp implements WhisperController {
      
     @Activate
     protected void activate() {
-        log.info("Started Whisper");
+        log.info("Starting Whisper...");
         channelHandler = new WhisperChannelHandler(this);
         this.run();
         log.info("Done.");
@@ -235,10 +238,12 @@ public class WhisperApp implements WhisperController {
 	    SensorNodeId id = snode.getId();
 
 	    if (connectedSensorNodes.get(DeviceId.deviceId(id.uri())) != null) {
+	    	  //check first if the schedules in this node have changed
+	    	  updateSchedules( jsonNode,  connectedSensorNodes.get(DeviceId.deviceId(id.uri())) ); 
 		      log.info("Node already exists skipping new Device");
 	          return false;
 		}
-	    
+	    updateSchedules( jsonNode, snode ); 	    
 	    connectedSensorNodes.put(DeviceId.deviceId(id.uri()),snode);
 	    log.info("Added node " + id.uri().toString());
 	    for (WhisperSensorNodeListener wListener : whisperSensorNodeListeners) {
@@ -246,6 +251,81 @@ public class WhisperApp implements WhisperController {
 	    }
 
 	    return true;	    
+    }
+    
+    private void updateSchedules(ObjectNode jsonNode, SensorNode snode ){
+        log.info("Updating cells of node  cells of node {}",snode.getStringId());
+    	int ts=0;
+    	int ch=0;
+    	int jts=0;
+    	int jch=0;
+    	String type="UNKOWN";
+    	String txNode=null;
+    	String rxNode=null;
+    	JsonNode jCell;
+    	boolean found;
+	    
+	Iterable<Cell> nCells = snode.getCells();
+	for(Cell cell: nCells){
+	    	found=false;
+	    	log.info("Checking cell of node: "+cell.getStringId());
+	    	ts=cell.getTS(); 
+	    	ch=cell.getCH();
+	    	
+	    	Iterator<JsonNode> cells = jsonNode.get("cells").elements();
+	    	while (cells.hasNext()) {
+	    		jCell=cells.next();   	
+	    		log.info("Checking incommig cell: "+jCell);
+		    	jts=Integer.parseInt(jCell.get("tslot").toString()); 
+		    	jch=Integer.parseInt(jCell.get("ch").toString());
+		    	log.info("Checking cell {},{} with {},{}: ",jts,jch,ts,ch);
+		    	if ( (ts==jts) && ( ch==jch) ){
+		    		log.info("Cell {},{} already exists",ts,ch);
+		    		found=true;
+		    		break;
+		    	}
+	    	}
+		    	
+		    if (found==false){	//the new json does not include the cell, it may have been revoved
+		    	log.info("Cell {},{} does not exists any more. Removing...",ts,ch);
+		    	snode.removeCell(cell);
+		    }
+	    						
+	}
+	    
+	//now we need to check if new cells are provided
+    	Iterator<JsonNode> cells = jsonNode.get("cells").elements();
+    	while (cells.hasNext()) {
+    		found=false;
+    		jCell=cells.next();   	
+    		log.info("Checking again incommig cell:"+jCell);      
+	    	jts=Integer.parseInt(jCell.get("tslot").toString()); 
+	    	jch=Integer.parseInt(jCell.get("ch").toString());
+    		
+		    nCells = snode.getCells();
+		    for(Cell celln: nCells){
+		    	log.info("Checking again cell of node: "+celln.getStringId());
+		    	ts=celln.getTS(); 
+		    	ch=celln.getCH();
+		    	
+		    	if ( (ts==jts) && ( ch==jch) ){
+		    		log.info("Cell {},{} already exists",ts,ch);
+		    		found=true;
+		    		break;
+		    	}
+		    }
+		    if (found==false){ 
+		    	log.info("Cell {},{} seems a new cell. Adding...",jts,jch);
+		    	Cell c;
+		    	type=jCell.get("type").toString();
+		    	rxNode=jCell.get("rxNode").toString();
+		        txNode=jCell.get("txNode").toString();
+		        SensorNodeId node1=new SensorNodeId(txNode);
+		        SensorNodeId node2=new SensorNodeId(rxNode);
+		    	c = new Cell(node1,node2,jts,jch,type);
+		    	snode.putCell(c);
+		    }
+        }   
     }
 
     public void removeConnectedSensorNode(SensorNode node){

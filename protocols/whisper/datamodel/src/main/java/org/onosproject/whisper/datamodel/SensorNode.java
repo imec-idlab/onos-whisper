@@ -58,30 +58,6 @@ public class SensorNode {
 		    	}
 	    		root=false;
 	    	}
-
-	        log.info("Checking cells...");
-	    	int ts=0;
-	    	int ch=0;
-	    	String type="UNKOWN";
-	    	String txNode=null;
-	    	String rxNode=null;
-	    	Cell c;
-		JsonNode cell;
-	    	
-	        Iterator<JsonNode> cells = jsonTree.get("cells").elements();
-                while (cells.hasNext()) {
-		    	cell = cells.next();
-		    	log.info("Checking cell:"+cell);
-		    	ts=Integer.parseInt(cell.get("tslot").toString()); 
-		    	ch=Integer.parseInt(cell.get("ch").toString());
-		    	type=cell.get("type").toString();
-		    	rxNode=cell.get("rxNode").toString();
-		        txNode=cell.get("txNode").toString();
-		        SensorNodeId node1=new SensorNodeId(txNode);
-		        SensorNodeId node2=new SensorNodeId(rxNode);
-		    	c = new Cell(node1,node2,ts,ch,type);
-		    	this.putCell(c);
-                }
 	    	
 	    	String ipv6 = jsonTree.get("ipv6").toString().replace("\"", "");
 	    	
@@ -108,7 +84,7 @@ public class SensorNode {
     }
 
     public String getStringId(){
-    	return this.id.toString();
+    	return this.id.uri().toString();
     }
 
     public String getStringIpv6(){
@@ -157,6 +133,10 @@ public class SensorNode {
     
     public void putCell(Cell cell) {
     	this.usedCells.put(cell.getStringId(),cell);
+    }
+    
+    public void removeCell(Cell cell) {
+    	this.usedCells.remove(cell.getStringId(),cell);
     }
 
     

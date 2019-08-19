@@ -21,6 +21,7 @@ public class SensorNodeId {
     
     private int simpleId;
     private String smac;
+    private String lastMacByte="00";
     private MacAddress macAddress;
     private MacAddress macAddressHost;
     private boolean isRoot;
@@ -64,12 +65,16 @@ public class SensorNodeId {
 			    macaddrHost[i] = hexHost.byteValue();
 			    mbytesHost[i] = macaddrHost[i].byteValue();
 		    }
+		    if (i==5){
+		    	lastMacByte=macAddressParts[i];
+		    }
 	   } 
 
 	   simpleId=((macaddr[4]*256)+(macaddr[5])); 
 	  
 	   macAddress = new MacAddress(mbytes);
 	   macAddressHost = new MacAddress(mbytesHost);
+	   log.info("Created SensorNodeId with mac: "+lastMacByte);
    }
   
    public MacAddress getMacAddress() {
@@ -84,6 +89,10 @@ public class SensorNodeId {
 			return simpleId;  
    }
  
+   public String getLastMacByte() {  
+			return lastMacByte;  
+   }
+   
   public URI uri() {
 	  String schemeSpecificPart;
 	  if (this.isRoot){
