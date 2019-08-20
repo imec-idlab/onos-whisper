@@ -48,6 +48,7 @@ import org.onosproject.whisper.controller.WhisperMessageListener;
 import org.onosproject.whisper.datamodel.SensorNodeId;
 import org.onosproject.whisper.datamodel.SensorNode;
 import org.onosproject.whisper.datamodel.WirelessLink;
+import org.onosproject.whisper.datamodel.ControllerEntry;
 
 import org.onosproject.whisper.WhisperApp;
 
@@ -205,6 +206,8 @@ public class WhisperMessageProvider extends AbstractProvider implements LinkProv
 	                LOG.info("Adding new link reversed");
 	            }
 	            LOG.info("Connecting SINK {} with OFSwitch {}", connectPoint.deviceId(), switchConnectPoint.deviceId());
+	            ControllerEntry wc= new ControllerEntry(incumbentDeviceId.uri().toString(),0,0,1);
+	            controller.putWhisperController(wc);
         	  
         	}else{
         		
@@ -339,8 +342,14 @@ public class WhisperMessageProvider extends AbstractProvider implements LinkProv
         	WirelessLink link=new WirelessLink(node1,node2);
         	if (linkExists(node1,node2)==false){
         		 
-    	    	  LOG.info("Adding new Wireless Link");
-    		      controller.putLink(link);
+    	    	        LOG.info("Adding new Wireless Link");
+    		        controller.putLink(link);
+    			Iterable<ControllerEntry> nWhispControllers = controller.getWhisperControllers();
+    		    	for(ControllerEntry wc: nWhispControllers){
+    		    		if (wc.id().equals("whisper:4B:00:06:13:06:56")){	//parse with the correct controller id
+    		    			wc.setLinks(wc.links()+1);
+    		    		}
+    		    	}
     		}else{
     		    	LOG.info("link already exists: "+link.getStringId());
     		    	return;

@@ -51,6 +51,7 @@ import org.onosproject.whisper.datamodel.SensorNodeId;
 import org.onosproject.whisper.datamodel.SensorNode;
 import org.onosproject.whisper.datamodel.WirelessLink;
 import org.onosproject.whisper.datamodel.Cell;
+import org.onosproject.whisper.datamodel.ControllerEntry;
 import org.onosproject.whisper.rest.WhisperWebResource;
 
 import org.onosproject.net.HostId;
@@ -100,6 +101,8 @@ public class WhisperApp implements WhisperController {
     protected ConcurrentHashMap<String, HostId> connectedHosts = new ConcurrentHashMap<>();
 
     protected ConcurrentHashMap<String, WirelessLink> connectedLinks = new ConcurrentHashMap<>();
+    
+    protected ConcurrentHashMap<String, ControllerEntry> connectedControllers = new ConcurrentHashMap<>();
     
     private WhisperChannelHandler channelHandler;
     private NioServerSocketChannelFactory execFactory;
@@ -199,13 +202,35 @@ public class WhisperApp implements WhisperController {
         connectedLinks.put(link.getStringId(),link);
     }
     
+    @Override
+    public Iterable<ControllerEntry> getWhisperControllers() {
+        return connectedControllers.values();
+    }
+
+    @Override
+    public ControllerEntry getWhisperController(String id) {
+        return connectedControllers.get(id);
+    }
+    
+    @Override
+    public void putWhisperController(ControllerEntry cont) {
+    	connectedControllers.put(cont.id(),cont);
+    }
+    
     public void processMessage(ObjectNode jsonTree){
     	
-	    log.info("Processing REST message");
+	    	log.info("Processing REST message");
 	    
-	    SensorNode snode = new SensorNode(jsonTree);  
-	    SensorNodeId id = snode.getId();
+	    	SensorNode snode = new SensorNode(jsonTree);  
+	   	SensorNodeId id = snode.getId();
 
+	        Iterable<ControllerEntry> nWhispControllers = getWhisperControllers();
+    	        for(ControllerEntry wc: nWhispControllers){
+    			if (wc.id().equals("whisper:4B:00:06:13:06:56")){	//parse with the correct controller id
+    				wc.setMessages(wc.messages()+1);
+    			}
+    	        }
+	    
 		for (WhisperMessageListener wListener : whisperMessageListeners) {
 		    	wListener.handleMessage(jsonTree);
 		}
@@ -232,7 +257,7 @@ public class WhisperApp implements WhisperController {
     }
     
     public boolean addConnectedSensorNode(ObjectNode jsonNode){
-	    log.info("Adding node...");
+	    log.info("Trying to add node...");
 
 	    SensorNode snode = new SensorNode(jsonNode);  
 	    SensorNodeId id = snode.getId();
@@ -242,7 +267,15 @@ public class WhisperApp implements WhisperController {
 	    	  updateSchedules( jsonNode,  connectedSensorNodes.get(DeviceId.deviceId(id.uri())) ); 
 		      log.info("Node already exists skipping new Device");
 	          return false;
-		}
+	    }
+
+	    Iterable<ControllerEntry> nWhispControllers = getWhisperControllers();
+    	    for(ControllerEntry wc: nWhispControllers){
+    		if (wc.id().equals("whisper:4B:00:06:13:06:56")){	//parse with the correct controller id
+    			wc.setNodes(wc.nodes()+1);
+    		}
+    	    }
+	    
 	    updateSchedules( jsonNode, snode ); 	    
 	    connectedSensorNodes.put(DeviceId.deviceId(id.uri()),snode);
 	    log.info("Added node " + id.uri().toString());
@@ -341,6 +374,4 @@ public class WhisperApp implements WhisperController {
 	    return this.channelHandler.write(type,data);
    
     }
-   
-   
 }

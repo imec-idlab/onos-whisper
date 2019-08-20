@@ -54,8 +54,6 @@ public class WhisperUiMessageHandler extends UiMessageHandler {
                 new SampleCustomDataRequestHandler()
         );
     }
-
-    
     
     // handler for sample data requests
     private final class SampleCustomDataRequestHandler extends RequestHandler {
@@ -88,16 +86,9 @@ public class WhisperUiMessageHandler extends UiMessageHandler {
 	        
         	for(SensorNode n: wNodes){
 
-        		log.info("checking node "+n.getId().getLastMacByte());
-            	
             	Iterable<Cell> wCells = n.getCells();
             	
             	for(Cell c: wCells){
-            		log.info("checking cell "+c.getStringId());
-            		log.info(" src "+c.getNodeSrc().getLastMacByte());
-            		log.info(" dst "+c.getNodeDst().getLastMacByte());
-            		log.info(" ts "+c.getTS());
-            		log.info(" ch "+c.getCH());
             		ts=c.getTS();
             		ch=c.getCH();
             		nodeSrc=c.getNodeSrc().getLastMacByte();
@@ -106,19 +97,12 @@ public class WhisperUiMessageHandler extends UiMessageHandler {
             			log.info("This is the minimal cell "+c.getStringId());
             			result.put(cellid+"_"+ts+"_"+ch, "MIN");
             		}else{
-//                		if (c.getNodeDst().getLastMacByte()==null){
-//                			nodeDst="FF";
-//                		}
-//                		if (c.getNodeSrc().getLastMacByte()==null){
-//                			nodeSrc="FF";
-//                		}
                 		result.put(cellid+"_"+ts+"_"+ch, nodeDst+"\n"+nodeSrc+"\n");	
             		}
             	
             	}
 
             }
-            //log.info("data for {} ... {}", SAMPLE_CUSTOM_DATA_RESP,result);
             sendMessage(SAMPLE_CUSTOM_DATA_RESP, result);
         }
     }

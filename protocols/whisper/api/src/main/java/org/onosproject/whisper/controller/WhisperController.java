@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.onosproject.whisper.datamodel.SensorNodeId;
 import org.onosproject.whisper.datamodel.SensorNode;
 import org.onosproject.whisper.datamodel.WirelessLink;
+import org.onosproject.whisper.datamodel.ControllerEntry;
 import org.onosproject.net.DeviceId;
 import org.onosproject.net.HostId;
 /**
@@ -42,4 +43,9 @@ public interface WhisperController {
 
     public boolean sendWhisperSouthBandMessage(String type, String data);
 
+    public Iterable<ControllerEntry> getWhisperControllers();
+
+    public ControllerEntry getWhisperController(String id);
+
+    public void putWhisperController(ControllerEntry cont);
 }
